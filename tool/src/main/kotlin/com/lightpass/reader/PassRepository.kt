@@ -1,5 +1,6 @@
 package com.lightpass.reader
 
+import android.content.Context
 import com.thelightphone.sdk.SealedLightContext
 import kotlinx.coroutines.flow.Flow
 import java.io.File
@@ -13,11 +14,9 @@ class PassRepository(
 ) {
     private val parser = PassParser()
 
-    // Permanent home for ORIGINAL images (shown full-screen). filesDir is public on SealedLightContext.
     private val passDir: File
         get() = File(lightContext.filesDir, "passes").apply { mkdirs() }
 
-    // Import inbox: images land here (via LightOS file share / adb run-as), then get pulled in.
     private val importDir: File
         get() = File(lightContext.filesDir, "import").apply { mkdirs() }
 
@@ -28,19 +27,27 @@ class PassRepository(
     suspend fun getApiKey(): String = dao.getMetadata(KEY_API).orEmpty()
     suspend fun setApiKey(key: String) = dao.putMetadata(AppMetadataEntity(KEY_API, key.trim()))
 
-    /** Import every image currently in the inbox; returns how many were added. */
+    /** Legacy drop-inbox importer (kept as a fallback). */
     suspend fun importFromInbox(): Int {
         val key = getApiKey()
         val images = importDir.listFiles { f ->
             f.isFile && f.extension.lowercase() in setOf("jpg", "jpeg", "png")
         }.orEmpty()
         var count = 0
-        for (src in images) {
-            addPass(src.readBytes(), key)
-            src.delete()
-            count++
-        }
+        for (src in images) { addPass(src.readBytes(), key); src.delete(); count++ }
         return count
+    }
+
+    /** Import from a content:// Uri (album pick or camera output that yielded a Uri). */
+    suspend fun addPassFromUri(uri: android.net.Uri, context: Context) {
+        val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+        addPass(bytes, getApiKey())
+    }
+
+    /** Import from an already-captured file on disk (camera capture path). */
+    suspend fun addPassFromFile(file: File) {
+        addPass(file.readBytes(), getApiKey())
+        runCatching { file.delete() }
     }
 
     /** Copy original bytes into permanent storage, parse best-effort, persist. */
@@ -48,23 +55,28 @@ class PassRepository(
         val id = UUID.randomUUID().toString()
         val dst = File(passDir, "$id.jpg")
         dst.writeBytes(bytes)
-
         val meta = if (apiKey.isNotBlank()) {
             runCatching { parser.parse(dst, apiKey) }.getOrNull()
         } else null
-
         dao.insert(
             PassEntity(
                 id = id,
-                title = meta?.title ?: "Pass ${id.take(4)}",
-                type = meta?.type ?: "other",
+                movieTitle = if (meta == null || meta.notATicket) "Ticket ${id.take(4)}"
+                             else meta.movieTitle.ifBlank { "Untitled" },
+                theater = meta?.theater,
                 date = meta?.date,
+                time = meta?.time,
+                seat = meta?.seat,
+                price = meta?.price,
                 code = meta?.code,
-                issuer = meta?.issuer,
+                confidence = meta?.confidence ?: 0.0,
                 imagePath = dst.absolutePath,
             ),
         )
     }
+
+    /** A fresh temp file for camera capture output. */
+    fun newCaptureFile(): File = File(passDir, "cap_${UUID.randomUUID()}.jpg")
 
     suspend fun deletePass(pass: PassEntity) {
         runCatching { File(pass.imagePath).delete() }

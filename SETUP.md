@@ -35,3 +35,16 @@ uses your **own Anthropic API key** (Claude Vision) to auto-title them.
 - No key set? Imports still save with a placeholder title; re-import later once the key is set.
 - Screen renders monochrome outside the camera/album — fine for QR/barcodes.
 - Cost: ~a fraction of a cent per pass on Haiku.
+
+## v1.1 — camera, album, QR key, web tool
+
+**Add a pass:** tap **+** → choose **Take a photo** (live CameraX capture) or **Choose from album** (reads the phone's photo library). The original image is stored and auto-titled by Claude. No pre-dropping files needed.
+
+**Set the API key by QR (no typing):**
+1. Open the web tool (GitHub Pages, see below), paste your Anthropic key → a QR appears.
+2. On the phone: Passes → Settings (gear) → **Scan API key (QR)** → point the camera at the QR.
+   (Manual typing is still available under "Type API key manually".)
+
+**Enable the web tool (one-time):** repo → Settings → Pages → Source = **Deploy from a branch**, Branch = **main**, folder = **/docs** → Save. It publishes at `https://gi-os.github.io/LightPass/`. The page runs entirely client-side; the key never leaves the browser.
+
+**New permissions:** CAMERA (capture + QR scan) and READ_MEDIA_IMAGES (album). Granted through LightOS on first use.

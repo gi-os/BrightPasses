@@ -13,12 +13,15 @@ import kotlinx.coroutines.flow.Flow
 @Entity(tableName = "passes")
 data class PassEntity(
     @PrimaryKey val id: String,
-    val title: String,
-    val type: String = "other",      // movie | flight | event | transit | loyalty | other
-    val date: String? = null,        // ISO if parsed
-    val code: String? = null,        // barcode/QR value if legible
-    val issuer: String? = null,
-    val imagePath: String,           // absolute path to the ORIGINAL image on disk
+    val movieTitle: String,
+    val theater: String? = null,
+    val date: String? = null,       // YYYY-MM-DD
+    val time: String? = null,       // h:mm AM/PM
+    val seat: String? = null,
+    val price: String? = null,
+    val code: String? = null,       // barcode/QR text if visible
+    val confidence: Double = 0.0,
+    val imagePath: String,          // absolute path to the ORIGINAL image
     val addedAt: Long = System.currentTimeMillis(),
 )
 
@@ -36,9 +39,8 @@ interface PassDao {
     @Query(
         """
         SELECT * FROM passes
-        WHERE title LIKE '%' || :q || '%'
-           OR type  LIKE '%' || :q || '%'
-           OR issuer LIKE '%' || :q || '%'
+        WHERE movieTitle LIKE '%' || :q || '%'
+           OR theater LIKE '%' || :q || '%'
         ORDER BY addedAt DESC
         """,
     )

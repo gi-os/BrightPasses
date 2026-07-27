@@ -1,8 +1,16 @@
 package com.lightpass.reader
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import com.thelightphone.sdk.ui.gridUnitsAsDp
+import com.thelightphone.sdk.ui.lightClickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,7 +39,7 @@ class HomeScreen(sealedActivity: SealedLightActivity) :
     override val viewModelClass: Class<HomeViewModel> = HomeViewModel::class.java
 
     override fun createViewModel(): HomeViewModel {
-        val database = lightContext.buildDatabase(PassDatabase::class.java, "light-pass.db")
+        val database = lightContext.buildDatabase(PassDatabase::class.java, "light-pass-v2.db")
         return HomeViewModel(PassRepository(database.passDao(), lightContext), database)
     }
 
@@ -55,14 +63,14 @@ class HomeScreen(sealedActivity: SealedLightActivity) :
                     center = LightTopBarCenter.Text("Passes"),
                     rightButton = LightBarButton.LightIcon(
                         icon = LightIcons.ADD,
-                        onClick = { viewModel.importFromInbox() },
-                        contentDescription = "Import from drop folder",
+                        onClick = { navigateTo({ AddChooserScreen(it, repository) }) },
+                        contentDescription = "Add pass",
                     ),
                 )
                 status?.let { LightText(it, variant = LightTextVariant.Detail) }
                 PassList(
                     passes = passes,
-                    emptyMessage = "No passes yet.\n\nDrop images into the import folder over USB, then tap +.\nSet your Anthropic key in Settings to auto-title them.",
+                    emptyMessage = "No passes yet.\n\nTap + to take a photo or pick from your album.\nSet your Anthropic key in Settings (scan a QR) to auto-title them.",
                     onOpen = { pass -> navigateTo({ ViewerScreen(it, repository, pass.id) }) },
                     modifier = Modifier,
                 )
@@ -88,7 +96,7 @@ class ViewerScreen(
             Column(modifier = Modifier.fillMaxSize().background(LightThemeTokens.colors.background)) {
                 LightTopBar(
                     leftButton = LightBarButton.LightIcon(LightIcons.BACK, onClick = { goBack() }),
-                    center = LightTopBarCenter.Text(pass?.title ?: "Pass"),
+                    center = LightTopBarCenter.Text(pass?.movieTitle ?: "Pass"),
                 )
                 pass?.let { FullscreenPass(it.imagePath, Modifier) }
             }
@@ -97,6 +105,40 @@ class ViewerScreen(
 }
 
 class SettingsScreen(
+    sealedActivity: SealedLightActivity,
+    private val repository: PassRepository,
+) : LightScreen<Unit, EmptyViewModel>(sealedActivity) {
+    override val viewModelClass = EmptyViewModel::class.java
+    override fun createViewModel() = EmptyViewModel()
+
+    @Composable
+    override fun Content() {
+        val colors by LightThemeController.colors.collectAsState()
+        LightTheme(colors = colors) {
+            Column(Modifier.fillMaxSize().background(LightThemeTokens.colors.background)) {
+                LightTopBar(
+                    leftButton = LightBarButton.LightIcon(LightIcons.BACK, onClick = { goBack() }),
+                    center = LightTopBarCenter.Text("API key"),
+                )
+                SettingsRow("Scan API key (QR)") { navigateTo({ KeyScannerScreen(it, repository) }) }
+                SettingsRow("Type API key manually") { navigateTo({ ManualKeyScreen(it, repository) }) }
+            }
+        }
+    }
+
+    @Composable
+    private fun SettingsRow(label: String, onClick: () -> Unit) {
+        Box(
+            modifier = Modifier.fillMaxWidth()
+                .height(3f.gridUnitsAsDp())
+                .lightClickable(onClickLabel = label, role = Role.Button) { onClick() }
+                .padding(horizontal = 1f.gridUnitsAsDp()),
+            contentAlignment = Alignment.CenterStart,
+        ) { LightText(label, variant = LightTextVariant.Copy) }
+    }
+}
+
+class ManualKeyScreen(
     sealedActivity: SealedLightActivity,
     private val repository: PassRepository,
 ) : LightScreen<Unit, SettingsViewModel>(sealedActivity) {

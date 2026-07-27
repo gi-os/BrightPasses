@@ -71,3 +71,6 @@ class ViewerViewModel(
     val pass: StateFlow<PassEntity?> = repository.observePass(passId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 }
+
+/** No-state viewmodel for simple screens (camera/album/QR/chooser). */
+class EmptyViewModel : com.thelightphone.sdk.LightViewModel<Unit>()

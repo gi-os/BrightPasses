@@ -58,8 +58,8 @@ private fun PassRow(pass: PassEntity, onOpen: (PassEntity) -> Unit) {
             .padding(horizontal = 1f.gridUnitsAsDp(), vertical = 0.45f.gridUnitsAsDp()),
         verticalArrangement = Arrangement.Center,
     ) {
-        LightText(pass.title, variant = LightTextVariant.Copy, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        val sub = listOfNotNull(pass.type.uppercase().takeIf { it != "OTHER" }, pass.date).joinToString(" · ")
+        LightText(pass.movieTitle, variant = LightTextVariant.Copy, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        val sub = listOfNotNull(pass.theater, pass.date, pass.time, pass.seat?.let { "Seat $it" }).joinToString(" · ")
         if (sub.isNotBlank()) {
             LightText(sub, variant = LightTextVariant.Detail, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
