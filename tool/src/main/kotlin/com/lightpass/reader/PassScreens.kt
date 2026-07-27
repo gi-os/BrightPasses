@@ -59,7 +59,7 @@ class HomeScreen(sealedActivity: SealedLightActivity) :
                         contentDescription = "Import from drop folder",
                     ),
                 )
-                status?.let { LightText(it, variant = LightTextVariant.Detail) }
+                status?.let { LightText(it, variant = LightTextVariant.Caption) }
                 PassList(
                     passes = passes,
                     emptyMessage = "No passes yet.\n\nDrop images into the import folder over USB, then tap +.\nSet your Anthropic key in Settings to auto-title them.",
@@ -116,7 +116,7 @@ class SettingsScreen(
                 editorKey = state.inputSession,
                 keyboardOptionsFlow = keyboard,
                 state = input,
-                onSubmit = { raw -> viewModel.save(raw.toString()) { goBack() } },
+                onSubmit = { raw -> viewModel.save(raw) { goBack() } },
                 onBack = { goBack() },
                 submitIcon = LightIcons.ACCEPT,
                 showBackButton = true,
