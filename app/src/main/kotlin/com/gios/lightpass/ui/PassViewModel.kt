@@ -35,6 +35,11 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    private val _apiKey = MutableStateFlow(repo.getApiKey())
+    val apiKeyState: StateFlow<String> = _apiKey.asStateFlow()
+    private val _tmdbKey = MutableStateFlow(repo.getTmdbKey())
+    val tmdbKeyState: StateFlow<String> = _tmdbKey.asStateFlow()
+
     // one-shot: id of a freshly added pass, so the UI can open the movie picker
     private val _justAdded = MutableStateFlow<String?>(null)
     val justAdded: StateFlow<String?> = _justAdded.asStateFlow()
@@ -44,9 +49,9 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun getPass(id: String): PassEntity? = repo.getById(id)
 
     fun apiKey() = repo.getApiKey()
-    fun setApiKey(k: String) = repo.setApiKey(k)
+    fun setApiKey(k: String) { repo.setApiKey(k); _apiKey.value = repo.getApiKey() }
     fun tmdbKey() = repo.getTmdbKey()
-    fun setTmdbKey(k: String) = repo.setTmdbKey(k)
+    fun setTmdbKey(k: String) { repo.setTmdbKey(k); _tmdbKey.value = repo.getTmdbKey() }
     fun hasTmdbKey() = repo.getTmdbKey().isNotBlank()
     fun newCaptureFile(): File = repo.newCaptureFile()
 

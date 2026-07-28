@@ -118,8 +118,10 @@ private fun PassRow(pass: PassEntity, dim: Boolean = false, onClick: () -> Unit)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(vm: PassViewModel, onScanApiQr: () -> Unit, onScanTmdbQr: () -> Unit, onBack: () -> Unit) {
-    var draft by remember { mutableStateOf(vm.apiKey()) }
-    var tmdb by remember { mutableStateOf(vm.tmdbKey()) }
+    val savedApi by vm.apiKeyState.collectAsStateWithLifecycle()
+    val savedTmdb by vm.tmdbKeyState.collectAsStateWithLifecycle()
+    var draft by remember(savedApi) { mutableStateOf(savedApi) }
+    var tmdb by remember(savedTmdb) { mutableStateOf(savedTmdb) }
     Scaffold(
         containerColor = Color.Black,
         topBar = {
