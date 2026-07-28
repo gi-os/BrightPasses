@@ -74,6 +74,28 @@ through Developer Mode with tool permissions set to **Any tools**.
 `LightFont.kt` reads Akkurat off the device font list, so the app matches the LightOS
 type without a bundled font file.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/screenshots/tickets.png" width="250" alt="LightPass ticket list, three upcoming films"><br>
+      <sub>Upcoming and archive</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/ticket-detail.png" width="250" alt="LightPass ticket detail for Fallen Angels"><br>
+      <sub>Every field editable</sub>
+    </td>
+    <td align="center">
+      <img src="docs/screenshots/ticket-poster.png" width="250" alt="LightPass full poster in color"><br>
+      <sub>Poster in full color</sub>
+    </td>
+  </tr>
+</table>
+
+Taken on a Light Phone III. The posters show color because the detail page turns off the
+system grayscale filter while a stub is open.
+
 ## Origin and credits
 
 - **[gi-os/NDPass](https://github.com/gi-os/NDPass)** is the iOS ticket collector this
@@ -101,7 +123,7 @@ uses, because the SDK scanner would not start reliably in a release build.
 
 ## The gi-os Light App collection
 
-Eight tools for the Light Phone III, all open source, all built in one run.
+Nine tools for the Light Phone III, all open source, all built in one run.
 
 | Tool | What it does | Built on |
 | --- | --- | --- |
@@ -113,6 +135,7 @@ Eight tools for the Light Phone III, all open source, all built in one run.
 | [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
 | [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
+| [LightFastread](https://github.com/gi-os/LightFastread) | RSVP speed reader for EPUB and MOBI | Fork of [fluffyspace/FastRead](https://github.com/fluffyspace/FastRead) |
 
 The Light Phone does not sponsor or endorse any of these.
 
