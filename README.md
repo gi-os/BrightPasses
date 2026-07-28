@@ -79,10 +79,13 @@ type without a bundled font file.
 - **[gi-os/NDPass](https://github.com/gi-os/NDPass)** is the iOS ticket collector this
   app grew out of. LightPass reuses its ticket schema (title, theater, date, time, seat,
   price, confidence) and its detail-page layout.
-- **[vandamd](https://github.com/vandamd)** worked out that an app can lift the Light
-  Phone grayscale filter with `WRITE_SECURE_SETTINGS`, in
-  [zero](https://github.com/vandamd/zero). `util/Grayscale.kt` applies that idea to a
-  ticket viewer. Thank you.
+- **[vandamd](https://github.com/vandamd)** is where I saw the grayscale trick, in
+  [zero](https://github.com/vandamd/zero) (MIT). The Light Phone grayscale is the stock
+  Android color-correction setting, and an app with `WRITE_SECURE_SETTINGS` can turn it
+  off. `util/Grayscale.kt` is a separate 30-line implementation of that idea against
+  `Settings.Secure`, applied to a ticket viewer.
+  [garado/light-topographic](https://github.com/garado/light-topographic) ships the same
+  technique as a native module. Thank you both.
 - **[The Light Phone](https://www.thelightphone.com/)** for the hardware, for LightOS,
   and for opening the SDK to the community.
 - **[Anthropic](https://www.anthropic.com/)** for the Claude API that reads the stubs.
@@ -107,7 +110,7 @@ Eight tools for the Light Phone III, all open source, all built in one run.
 | [LightRSS](https://github.com/gi-os/LightRSS) | RSS and Atom reader with images and QR subscribe | light-sdk, fork of [zachattack323/LightRSS](https://github.com/zachattack323/LightRSS) |
 | [LightNYCSubway](https://github.com/gi-os/LightNYCSubway) | Live MTA subway arrivals | light-sdk fork |
 | [chat](https://github.com/gi-os/chat) | iMessage over a self-hosted BlueBubbles server | Fork of [craigeley/chat](https://github.com/craigeley/chat) |
-| [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Expo, [vandamd/light-template](https://github.com/vandamd/light-template) |
+| [LightFog](https://github.com/gi-os/LightFog) | Fog of World companion, GPS recorder and fog map | Fork of [garado/light-topographic](https://github.com/garado/light-topographic) |
 | [LightNonogram](https://github.com/gi-os/LightNonogram) | Picross, plus a generator that only ships solvable puzzles | Kotlin generator, light-sdk tool |
 | [LightSolitaire](https://github.com/gi-os/LightSolitaire) | Klondike, draw one, unlimited redeals | light-sdk |
 
