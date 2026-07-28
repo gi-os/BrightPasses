@@ -100,7 +100,7 @@ private fun PassRow(pass: PassEntity, dim: Boolean = false, onClick: () -> Unit)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: PassViewModel, onScanQr: () -> Unit, onBack: () -> Unit) {
+fun SettingsScreen(vm: PassViewModel, onScanApiQr: () -> Unit, onScanTmdbQr: () -> Unit, onBack: () -> Unit) {
     var draft by remember { mutableStateOf(vm.apiKey()) }
     var tmdb by remember { mutableStateOf(vm.tmdbKey()) }
     Scaffold(
@@ -116,13 +116,16 @@ fun SettingsScreen(vm: PassViewModel, onScanQr: () -> Unit, onBack: () -> Unit) 
             KeyField(draft, "sk-ant-...") { draft = it }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = { vm.setApiKey(draft) }) { Text("Save key") }
-                OutlinedButton(onClick = onScanQr) { Text("Scan QR") }
+                OutlinedButton(onClick = onScanApiQr) { Text("Scan QR") }
             }
             Spacer(Modifier.height(8.dp))
             Text("TMDb API key (optional — posters, runtime, synopsis)",
                 style = MaterialTheme.typography.bodyLarge, color = Color.White)
             KeyField(tmdb, "TMDb v3 api key") { tmdb = it }
-            Button(onClick = { vm.setTmdbKey(tmdb) }) { Text("Save TMDb key") }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = { vm.setTmdbKey(tmdb) }) { Text("Save TMDb key") }
+                OutlinedButton(onClick = onScanTmdbQr) { Text("Scan QR") }
+            }
             Text("Keys are stored only on this phone.", style = MaterialTheme.typography.bodyMedium,
                 color = Color(0xFF9A9A9A))
         }

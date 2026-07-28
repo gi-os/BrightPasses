@@ -49,11 +49,14 @@ object PassParser {
           "price": "price with $ or null",
           "code": "alphanumeric code under the barcode or null",
           "confidence": 0.95,
-          "box": {"x":0.0,"y":0.0,"w":1.0,"h":1.0}
+          "box": [x0, y0, x1, y1]
         }
-        "box" is the ticket's tight bounding box as fractions of the image
-        (x,y = top-left corner; w,h = width,height; all 0-1). If the ticket fills
-        the frame use {"x":0,"y":0,"w":1,"h":1}.
+        "box" is the TIGHT rectangle around ONLY the printed ticket/receipt paper,
+        as INTEGERS on a 0-1000 grid: [x0,y0] = top-left corner, [x1,y1] = bottom-right,
+        where 0,0 is the image's top-left and 1000,1000 is bottom-right.
+        Exclude any hand, table, background, or empty margins outside the ticket.
+        Trace the actual paper edges. Only use [0,0,1000,1000] if the paper truly
+        bleeds to every edge of the photo.
         Rules: date is ISO; time is 12-hour AM/PM; confidence 0-1 over all fields.
         If NOT a movie ticket, return {"error":"not_a_ticket","confidence":0}.
     """.trimIndent()
@@ -99,7 +102,16 @@ object PassParser {
             if (j.optString("error") == "not_a_ticket") {
                 return ParsedPass("", null, null, null, null, null, null, 0.0, null, null, null, null, notATicket = true)
             }
-            val box = j.optJSONObject("box")
+            val boxArr = j.optJSONArray("box")
+            var nx: Double? = null; var ny: Double? = null; var nw: Double? = null; var nh: Double? = null
+            if (boxArr != null && boxArr.length() == 4) {
+                val x0 = boxArr.optDouble(0); val y0 = boxArr.optDouble(1)
+                val x1 = boxArr.optDouble(2); val y1 = boxArr.optDouble(3)
+                if (!x0.isNaN() && !y0.isNaN() && !x1.isNaN() && !y1.isNaN() && x1 > x0 && y1 > y0) {
+                    nx = x0 / 1000.0; ny = y0 / 1000.0
+                    nw = (x1 - x0) / 1000.0; nh = (y1 - y0) / 1000.0
+                }
+            }
             return ParsedPass(
                 movieTitle = j.optString("movieTitle").ifBlank { "Untitled" },
                 theater = j.optString("theater").ifBlank { null },
@@ -109,8 +121,7 @@ object PassParser {
                 price = j.optString("price").ifBlank { null },
                 code = j.optString("code").ifBlank { null },
                 confidence = j.optDouble("confidence", 0.0),
-                boxX = box?.optDouble("x"), boxY = box?.optDouble("y"),
-                boxW = box?.optDouble("w"), boxH = box?.optDouble("h"),
+                boxX = nx, boxY = ny, boxW = nw, boxH = nh,
             )
         }
     }

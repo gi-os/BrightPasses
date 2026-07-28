@@ -28,7 +28,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(vm: PassViewModel, id: String, onBack: () -> Unit) {
+fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val pass by vm.observePass(id).collectAsStateWithLifecycle(initialValue = null)
     var editing by remember { mutableStateOf(false) }
@@ -65,7 +65,7 @@ fun DetailScreen(vm: PassViewModel, id: String, onBack: () -> Unit) {
         if (editing) {
             EditForm(Modifier.padding(pad), p) { updated -> vm.save(updated); editing = false }
         } else {
-            DetailBody(Modifier.padding(pad), p)
+            DetailBody(Modifier.padding(pad), p, onPickMovie)
         }
     }
 
@@ -82,7 +82,7 @@ fun DetailScreen(vm: PassViewModel, id: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun DetailBody(modifier: Modifier, p: PassEntity) {
+private fun DetailBody(modifier: Modifier, p: PassEntity, onPickMovie: () -> Unit) {
     Column(
         modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -99,7 +99,10 @@ private fun DetailBody(modifier: Modifier, p: PassEntity) {
         Spacer(Modifier.height(16.dp))
         Text(p.movieTitle, style = MaterialTheme.typography.titleLarge, color = Color.White)
         p.year?.let { Text(it, color = Color(0xFFB0B0B0)) }
-        Spacer(Modifier.height(20.dp))
+        TextButton(onClick = onPickMovie) {
+            Text(if (p.posterUrl == null) "Pick movie" else "Change movie", color = Color(0xFF7FB0FF))
+        }
+        Spacer(Modifier.height(12.dp))
 
         InfoRow("BEGINS", PassTimes.beginsLabel(p) ?: p.time ?: "—", "ENDS", PassTimes.endsLabel(p) ?: "—")
         Spacer(Modifier.height(12.dp))

@@ -6,48 +6,46 @@ import org.json.JSONObject
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
-data class MovieMeta(
+data class MovieCandidate(
+    val id: Int,
+    val title: String,
+    val year: String?,
     val posterUrl: String?,
     val overview: String?,
-    val runtimeMin: Int?,
-    val year: String?,
 )
 
-/** Optional TMDb lookup (v3 api_key). All failures return null fields. */
+/** Optional TMDb lookup (v3 api_key). All failures return empty/null. */
 object TmdbClient {
     private const val IMG = "https://image.tmdb.org/t/p/w500"
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).build()
 
-    fun lookup(title: String, apiKey: String, year: String? = null): MovieMeta? {
-        if (apiKey.isBlank() || title.isBlank()) return null
+    /** All results for the title, so the user can pick the right one. */
+    fun search(title: String, apiKey: String, year: String? = null): List<MovieCandidate> {
+        if (apiKey.isBlank() || title.isBlank()) return emptyList()
         return runCatching {
             val q = URLEncoder.encode(title, "UTF-8")
             val yr = year?.let { "&year=$it" } ?: ""
-            val searchUrl = "https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=$q$yr"
-            val results = JSONObject(get(searchUrl)).optJSONArray("results") ?: return null
-            if (results.length() == 0) return null
-            val first = results.getJSONObject(0)
-            val id = first.optInt("id", -1)
-            val poster = first.optString("poster_path").takeIf { it.isNotBlank() && it != "null" }
-            val overview = first.optString("overview").ifBlank { null }
-            val relYear = first.optString("release_date").take(4).ifBlank { null }
-
-            var runtime: Int? = null
-            if (id > 0) {
-                runCatching {
-                    val det = JSONObject(get("https://api.themoviedb.org/3/movie/$id?api_key=$apiKey"))
-                    runtime = det.optInt("runtime").takeIf { it > 0 }
-                }
-            }
-            MovieMeta(
-                posterUrl = poster?.let { "$IMG$it" },
-                overview = overview,
-                runtimeMin = runtime,
-                year = relYear,
-            )
-        }.getOrNull()
+            val json = JSONObject(get("https://api.themoviedb.org/3/search/movie?api_key=$apiKey&query=$q$yr"))
+            val arr = json.optJSONArray("results") ?: return emptyList()
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                val poster = o.optString("poster_path").takeIf { it.isNotBlank() && it != "null" }
+                MovieCandidate(
+                    id = o.optInt("id", -1),
+                    title = o.optString("title").ifBlank { o.optString("original_title") },
+                    year = o.optString("release_date").take(4).ifBlank { null },
+                    posterUrl = poster?.let { "$IMG$it" },
+                    overview = o.optString("overview").ifBlank { null },
+                )
+            }.filter { it.id > 0 }.take(20)
+        }.getOrDefault(emptyList())
     }
+
+    fun runtime(id: Int, apiKey: String): Int? = runCatching {
+        JSONObject(get("https://api.themoviedb.org/3/movie/$id?api_key=$apiKey"))
+            .optInt("runtime").takeIf { it > 0 }
+    }.getOrNull()
 
     private fun get(url: String): String {
         client.newCall(Request.Builder().url(url).build()).execute().use { r ->

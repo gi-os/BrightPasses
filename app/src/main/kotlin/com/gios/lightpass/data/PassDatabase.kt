@@ -32,6 +32,9 @@ interface PassDao {
     @Query("SELECT * FROM passes WHERE id = :id LIMIT 1")
     fun observePass(id: String): Flow<PassEntity?>
 
+    @Query("SELECT * FROM passes WHERE id = :id LIMIT 1")
+    suspend fun getById(id: String): PassEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(pass: PassEntity)
 
