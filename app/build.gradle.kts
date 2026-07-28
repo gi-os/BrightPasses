@@ -14,8 +14,17 @@ android {
         applicationId = "com.gios.lightpass"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.4.0"
+        versionCode = 6
+        versionName = "1.5.0"
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("../keystore/lightpass.jks")
+            storePassword = "lightpass"
+            keyAlias = "lightpass"
+            keyPassword = "lightpass"
+        }
     }
 
     buildTypes {

@@ -1,4 +1,4 @@
-name: Build LightPass APK
+name: Build & Release APK
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -19,9 +19,29 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :app:assembleDebug --stacktrace
-      - uses: actions/upload-artifact@v4
+
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Read version name
+        id: ver
+        run: |
+          VN=$(grep 'versionName' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "version=$VN" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/debug/app-debug.apk "MovieTickets-v${VN}.apk"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: lightpass-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: MovieTickets-apk
+          path: MovieTickets-v${{ steps.ver.outputs.version }}.apk
           if-no-files-found: error
+
+      - name: Publish / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Movie Tickets v${{ steps.ver.outputs.version }}
+          files: MovieTickets-v${{ steps.ver.outputs.version }}.apk
+          generate_release_notes: true
+          make_latest: true
