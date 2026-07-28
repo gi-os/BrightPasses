@@ -6,6 +6,7 @@ import com.gios.lightpass.ai.MovieCandidate
 import com.gios.lightpass.ai.PassParser
 import com.gios.lightpass.ai.TmdbClient
 import com.gios.lightpass.util.ImageUtils
+import com.gios.lightpass.util.TextUtils
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 import java.util.UUID
@@ -73,7 +74,7 @@ class PassRepository(private val context: Context) {
             PassEntity(
                 id = id,
                 movieTitle = if (title.isNullOrBlank()) "Ticket ${id.take(4)}" else title,
-                theater = meta?.theater, date = meta?.date, time = meta?.time,
+                theater = TextUtils.titleCaseVenue(meta?.theater), date = meta?.date, time = meta?.time,
                 seat = meta?.seat, price = meta?.price, code = meta?.code,
                 confidence = meta?.confidence ?: 0.0,
                 imagePath = original.absolutePath,

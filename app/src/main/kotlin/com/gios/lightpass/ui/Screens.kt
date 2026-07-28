@@ -34,12 +34,13 @@ private fun barColors() = TopAppBarDefaults.topAppBarColors(
 fun HomeScreen(vm: PassViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit, onSettings: () -> Unit) {
     val lists by vm.lists.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
+    var tab by remember { mutableStateOf(0) } // 0 = Upcoming, 1 = Archive
     Scaffold(
         containerColor = Color.Black,
         topBar = {
             TopAppBar(
                 colors = barColors(),
-                title = { Text("Passes") },
+                title = { Text("Movie Tickets") },
                 navigationIcon = { IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") } },
                 actions = { IconButton(onClick = onAdd) { Icon(Icons.Default.Add, "Add") } },
             )
@@ -47,31 +48,31 @@ fun HomeScreen(vm: PassViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit, o
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().background(Color.Black)) {
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color.White, trackColor = Color(0xFF303030))
-            if (lists.active.isEmpty() && lists.archived.isEmpty()) {
+            TabRow(
+                selectedTabIndex = tab, containerColor = Color.Black, contentColor = Color.White,
+            ) {
+                Tab(selected = tab == 0, onClick = { tab = 0 },
+                    text = { Text("Upcoming (${lists.active.size})") },
+                    selectedContentColor = Color.White, unselectedContentColor = Color(0xFF8A8A8A))
+                Tab(selected = tab == 1, onClick = { tab = 1 },
+                    text = { Text("Archive (${lists.archived.size})") },
+                    selectedContentColor = Color.White, unselectedContentColor = Color(0xFF8A8A8A))
+            }
+            val shown = if (tab == 0) lists.active else lists.archived
+            if (shown.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                    Text("No passes yet.\n\nTap + to photograph a ticket.\nSet your API key in Settings to auto-title them.",
+                    Text(
+                        if (tab == 0) "No upcoming tickets.\n\nTap + to photograph a ticket."
+                        else "No archived tickets yet.",
                         style = MaterialTheme.typography.bodyLarge, color = Color.White)
                 }
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
-                    if (lists.active.isNotEmpty()) {
-                        item { SectionHeader("UPCOMING") }
-                        items(lists.active, key = { it.id }) { PassRow(it) { onOpen(it.id) } }
-                    }
-                    if (lists.archived.isNotEmpty()) {
-                        item { SectionHeader("ARCHIVED") }
-                        items(lists.archived, key = { it.id }) { PassRow(it, dim = true) { onOpen(it.id) } }
-                    }
+                    items(shown, key = { it.id }) { PassRow(it, dim = tab == 1) { onOpen(it.id) } }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    Text(text, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A8A8A),
-        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp))
 }
 
 @Composable
@@ -91,7 +92,7 @@ private fun PassRow(pass: PassEntity, dim: Boolean = false, onClick: () -> Unit)
         Column(Modifier.weight(1f)) {
             Text(pass.movieTitle, style = MaterialTheme.typography.bodyLarge, color = fg,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = listOfNotNull(pass.theater, pass.date, pass.time, pass.seat?.let { "Seat $it" }).joinToString(" · ")
+            val sub = listOfNotNull(pass.theater, com.gios.lightpass.util.PassTimes.humanDate(pass.date), pass.time, pass.seat?.let { "Seat $it" }).joinToString(" · ")
             if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodyMedium,
                 color = Color(0xFF9A9A9A), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

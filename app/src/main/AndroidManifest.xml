@@ -13,14 +13,14 @@
     <application
         android:allowBackup="true"
        
-        android:label="Passes"
+        android:label="Movie Tickets"
         android:supportsRtl="true"
         android:theme="@style/Theme.LightPass">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="Passes"
+            android:label="Movie Tickets"
             android:theme="@style/Theme.LightPass">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

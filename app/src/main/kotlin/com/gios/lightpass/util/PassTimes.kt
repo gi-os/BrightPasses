@@ -14,6 +14,7 @@ object PassTimes {
         DateTimeFormatter.ofPattern(it, Locale.US)
     }
     private val outFmt = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
+    private val monthFmt = DateTimeFormatter.ofPattern("MMMM", Locale.US)
 
     fun start(pass: PassEntity): LocalDateTime? {
         val d = pass.date ?: return null
@@ -40,5 +41,23 @@ object PassTimes {
         val s = start(pass) ?: return null
         val mins = pass.runtimeMin?.toLong() ?: return null   // only show end when runtime known
         return s.plusMinutes(mins).format(outFmt)
+    }
+
+    fun startMillis(pass: PassEntity): Long? =
+        start(pass)?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli()
+
+    /** "2026-08-06" -> "August 6th" */
+    fun humanDate(iso: String?): String? {
+        if (iso.isNullOrBlank()) return null
+        val d = runCatching { LocalDate.parse(iso) }.getOrNull() ?: return iso
+        val day = d.dayOfMonth
+        val suffix = when {
+            day in 11..13 -> "th"
+            day % 10 == 1 -> "st"
+            day % 10 == 2 -> "nd"
+            day % 10 == 3 -> "rd"
+            else -> "th"
+        }
+        return "${d.format(monthFmt)} $day$suffix"
     }
 }

@@ -108,7 +108,7 @@ private fun DetailBody(modifier: Modifier, p: PassEntity, onPickMovie: () -> Uni
         Spacer(Modifier.height(12.dp))
         InfoRow("THEATER", p.theater ?: "—", "SEAT", p.seat ?: "—")
         Spacer(Modifier.height(12.dp))
-        InfoRow("DATE", p.date ?: "—", "PRICE", p.price ?: "—")
+        InfoRow("DATE", PassTimes.humanDate(p.date) ?: "—", "PRICE", p.price ?: "—")
 
         p.overview?.let {
             Spacer(Modifier.height(20.dp))
@@ -160,7 +160,7 @@ private fun EditForm(modifier: Modifier, p: PassEntity, onSave: (PassEntity) -> 
             onClick = {
                 onSave(p.copy(
                     movieTitle = title.ifBlank { "Untitled" },
-                    theater = theater.ifBlank { null }, date = date.ifBlank { null },
+                    theater = com.gios.lightpass.util.TextUtils.titleCaseVenue(theater), date = date.ifBlank { null },
                     time = time.ifBlank { null }, seat = seat.ifBlank { null },
                     price = price.ifBlank { null },
                 ))

@@ -24,8 +24,10 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
             .map { all ->
                 val now = System.currentTimeMillis()
                 PassLists(
-                    active = all.filterNot { PassTimes.isArchived(it, now) },
-                    archived = all.filter { PassTimes.isArchived(it, now) },
+                    active = all.filterNot { PassTimes.isArchived(it, now) }
+                        .sortedWith(compareBy(nullsLast()) { PassTimes.startMillis(it) }),
+                    archived = all.filter { PassTimes.isArchived(it, now) }
+                        .sortedByDescending { PassTimes.startMillis(it) ?: it.addedAt },
                 )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PassLists(emptyList(), emptyList()))
