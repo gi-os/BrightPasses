@@ -61,3 +61,18 @@ object PassTimes {
         return "${d.format(monthFmt)} $day$suffix"
     }
 }
+
+object ShowTime {
+    private val re = Regex("""^\s*(\d{1,2}):(\d{2})\s*([AaPp])\.?[Mm]\.?\s*$""")
+    /** Correct obvious AM/PM slips: a 1:00-6:59 AM showtime is really PM. */
+    fun normalize(time: String?): String? {
+        val t = time?.trim() ?: return time
+        val m = re.find(t) ?: return time
+        val hour = m.groupValues[1].toInt()
+        val min = m.groupValues[2]
+        var mer = m.groupValues[3].uppercase()
+        if (mer == "A" && hour in 1..6) mer = "P"   // no movie starts 1-6 AM
+        val h = if (hour == 0) 12 else hour
+        return "$h:$min ${mer}M"
+    }
+}

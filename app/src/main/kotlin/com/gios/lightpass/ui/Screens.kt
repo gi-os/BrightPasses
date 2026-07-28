@@ -48,16 +48,12 @@ fun HomeScreen(vm: PassViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit, o
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().background(Color.Black)) {
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color.White, trackColor = Color(0xFF303030))
-            TabRow(
-                selectedTabIndex = tab, containerColor = Color.Black, contentColor = Color.White,
-            ) {
-                Tab(selected = tab == 0, onClick = { tab = 0 },
-                    text = { Text("Upcoming (${lists.active.size})") },
-                    selectedContentColor = Color.White, unselectedContentColor = Color(0xFF8A8A8A))
-                Tab(selected = tab == 1, onClick = { tab = 1 },
-                    text = { Text("Archive (${lists.archived.size})") },
-                    selectedContentColor = Color.White, unselectedContentColor = Color(0xFF8A8A8A))
-            }
+            LightTabs(
+                selected = tab,
+                labels = listOf("UPCOMING", "ARCHIVE"),
+                counts = listOf(lists.active.size, lists.archived.size),
+                onSelect = { tab = it },
+            )
             val shown = if (tab == 0) lists.active else lists.archived
             if (shown.isEmpty()) {
                 Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
@@ -72,6 +68,26 @@ fun HomeScreen(vm: PassViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit, o
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LightTabs(selected: Int, labels: List<String>, counts: List<Int>, onSelect: (Int) -> Unit) {
+    Column {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            labels.forEachIndexed { i, label ->
+                val active = i == selected
+                Text(
+                    text = "$label  ${counts[i]}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (active) Color.White else Color(0xFF5E5E5E),
+                    modifier = Modifier
+                        .clickable { onSelect(i) }
+                        .padding(horizontal = 22.dp, vertical = 16.dp),
+                )
+            }
+        }
+        HorizontalDivider(color = Color(0xFF262626), thickness = 1.dp)
     }
 }
 

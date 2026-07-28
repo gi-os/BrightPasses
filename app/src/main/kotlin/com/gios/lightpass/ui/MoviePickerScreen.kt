@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -13,21 +15,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.gios.lightpass.ai.MovieCandidate
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoviePickerScreen(vm: PassViewModel, passId: String, onDone: () -> Unit) {
-    var title by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf<String?>(null) } // null until pass loads
     var results by remember { mutableStateOf<List<MovieCandidate>?>(null) }
+
+    fun runSearch(q: String) {
+        results = null
+        scope.launch { results = vm.searchMovies(q) }
+    }
 
     LaunchedEffect(passId) {
         val p = vm.getPass(passId)
-        title = p?.movieTitle
-        results = p?.let { vm.searchMovies(it.movieTitle) } ?: emptyList()
+        val t = p?.movieTitle ?: ""
+        query = t
+        results = vm.searchMovies(t)
     }
 
     Scaffold(
@@ -39,22 +50,43 @@ fun MoviePickerScreen(vm: PassViewModel, passId: String, onDone: () -> Unit) {
                     navigationIconContentColor = Color.White, actionIconContentColor = Color.White,
                 ),
                 title = { Text("Select movie") },
-                navigationIcon = { IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                actions = { TextButton(onClick = onDone) { Text("Skip", color = Color.White) } },
+                navigationIcon = {
+                    TextButton(onClick = onDone) { Text("BACK", color = Color.White,
+                        style = MaterialTheme.typography.labelLarge) }
+                },
+                actions = {
+                    TextButton(onClick = onDone) { Text("SKIP", color = Color.White,
+                        style = MaterialTheme.typography.labelLarge) }
+                },
             )
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().background(Color.Black)) {
-            title?.let {
-                Text("Matches for \u201C$it\u201D", color = Color(0xFF9A9A9A),
-                    modifier = Modifier.padding(16.dp))
-            }
+            // Editable search title — correct Claude's guess and re-search.
+            OutlinedTextField(
+                value = query ?: "",
+                onValueChange = { query = it },
+                label = { Text("Search title") },
+                singleLine = true,
+                trailingIcon = {
+                    TextButton(onClick = { query?.let { runSearch(it) } }) {
+                        Text("SEARCH", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { query?.let { runSearch(it) } }),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedLabelColor = Color(0xFFB0B0B0), unfocusedLabelColor = Color(0xFF8A8A8A),
+                ),
+            )
             when {
                 results == null -> Box(Modifier.fillMaxSize(), Alignment.Center) {
                     CircularProgressIndicator(color = Color.White)
                 }
                 results!!.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                    Text("No TMDb matches. Add a TMDb key in Settings, or Skip and edit details by hand.",
+                    Text("No TMDb matches. Edit the title and search again, add a TMDb key in Settings, or Skip.",
                         color = Color.White)
                 }
                 else -> LazyColumn(Modifier.fillMaxSize()) {
@@ -74,9 +106,7 @@ private fun MovieRow(c: MovieCandidate, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
-            model = c.posterUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+            model = c.posterUrl, contentDescription = null, contentScale = ContentScale.Crop,
             modifier = Modifier.size(46.dp, 68.dp).background(Color(0xFF1A1A1A)),
         )
         Spacer(Modifier.width(14.dp))

@@ -45,3 +45,56 @@ object ImageUtils {
         return runCatching { Bitmap.createBitmap(src, left, top, cw, ch) }.getOrDefault(src)
     }
 }
+
+object AutoCrop {
+    /**
+     * Trim near-uniform margins (table/hand of a solid tone) around the ticket.
+     * Conservative: samples on a downscaled copy, caps trim at 42% per side, and
+     * returns the original if there's nothing clearly uniform to remove.
+     */
+    fun trimBorders(src: android.graphics.Bitmap): android.graphics.Bitmap {
+        val maxDim = 480
+        val scale = minOf(1f, maxDim.toFloat() / maxOf(src.width, src.height))
+        val sw = (src.width * scale).toInt().coerceAtLeast(1)
+        val sh = (src.height * scale).toInt().coerceAtLeast(1)
+        val small = android.graphics.Bitmap.createScaledBitmap(src, sw, sh, true)
+        val px = IntArray(sw * sh)
+        small.getPixels(px, 0, sw, 0, 0, sw, sh)
+
+        fun lum(c: Int): Int {
+            val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+            return (r * 299 + g * 587 + b * 114) / 1000
+        }
+        // background ~ median-ish of the 4 corners
+        val corners = intArrayOf(px[0], px[sw - 1], px[(sh - 1) * sw], px[sh * sw - 1]).map { lum(it) }
+        val bg = corners.sorted()[1]
+        val tol = 26   // luminance tolerance for "same as background"
+        fun rowUniform(y: Int): Boolean {
+            var i = y * sw
+            for (x in 0 until sw) { if (kotlin.math.abs(lum(px[i]) - bg) > tol) return false; i++ }
+            return true
+        }
+        fun colUniform(x: Int): Boolean {
+            var i = x
+            for (y in 0 until sh) { if (kotlin.math.abs(lum(px[i]) - bg) > tol) return false; i += sw }
+            return true
+        }
+        var top = 0; while (top < sh * 42 / 100 && rowUniform(top)) top++
+        var bottom = sh - 1; while (bottom > sh - sh * 42 / 100 && rowUniform(bottom)) bottom--
+        var left = 0; while (left < sw * 42 / 100 && colUniform(left)) left++
+        var right = sw - 1; while (right > sw - sw * 42 / 100 && colUniform(right)) right--
+        small.recycle()
+
+        if (top == 0 && left == 0 && bottom == sh - 1 && right == sw - 1) return src
+        // map back to full-res with a little padding
+        val padX = (sw * 0.01f); val padY = (sh * 0.01f)
+        val fl = (((left - padX) / sw).coerceIn(0f, 1f) * src.width).toInt()
+        val ft = (((top - padY) / sh).coerceIn(0f, 1f) * src.height).toInt()
+        val fr = (((right + padX) / sw).coerceIn(0f, 1f) * src.width).toInt()
+        val fb = (((bottom + padY) / sh).coerceIn(0f, 1f) * src.height).toInt()
+        val cw = (fr - fl).coerceAtLeast(1); val ch = (fb - ft).coerceAtLeast(1)
+        if (cw >= src.width && ch >= src.height) return src
+        if (cw < src.width / 4 || ch < src.height / 4) return src  // guard against over-trim
+        return runCatching { android.graphics.Bitmap.createBitmap(src, fl, ft, cw, ch) }.getOrDefault(src)
+    }
+}

@@ -57,7 +57,10 @@ object PassParser {
         Exclude any hand, table, background, or empty margins outside the ticket.
         Trace the actual paper edges. Only use [0,0,1000,1000] if the paper truly
         bleeds to every edge of the photo.
-        Rules: date is ISO; time is 12-hour AM/PM; confidence 0-1 over all fields.
+        Rules: date is ISO; time is 12-hour with AM/PM.
+        Read AM/PM carefully from the ticket. Movie showings are almost always
+        matinee or evening (11:00 AM - 11:59 PM); a 1-6 AM showtime is almost
+        certainly a misread PM. confidence 0-1 over all fields.
         If NOT a movie ticket, return {"error":"not_a_ticket","confidence":0}.
     """.trimIndent()
 

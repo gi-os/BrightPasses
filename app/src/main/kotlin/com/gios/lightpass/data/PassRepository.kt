@@ -5,7 +5,9 @@ import android.net.Uri
 import com.gios.lightpass.ai.MovieCandidate
 import com.gios.lightpass.ai.PassParser
 import com.gios.lightpass.ai.TmdbClient
+import com.gios.lightpass.util.AutoCrop
 import com.gios.lightpass.util.ImageUtils
+import com.gios.lightpass.util.ShowTime
 import com.gios.lightpass.util.TextUtils
 import kotlinx.coroutines.flow.Flow
 import java.io.File
@@ -62,7 +64,8 @@ class PassRepository(private val context: Context) {
 
         var croppedPath: String? = null
         if (meta != null && !meta.notATicket) {
-            val cropped = ImageUtils.cropToBox(upright, meta.boxX, meta.boxY, meta.boxW, meta.boxH)
+            var cropped = ImageUtils.cropToBox(upright, meta.boxX, meta.boxY, meta.boxW, meta.boxH)
+            if (cropped === upright) cropped = AutoCrop.trimBorders(upright) // fallback if model box was full-frame
             if (cropped !== upright) {
                 croppedPath = ImageUtils.saveJpeg(cropped, File(passDir, "${id}_crop.jpg")).absolutePath
                 cropped.recycle()
@@ -74,7 +77,7 @@ class PassRepository(private val context: Context) {
             PassEntity(
                 id = id,
                 movieTitle = if (title.isNullOrBlank()) "Ticket ${id.take(4)}" else title,
-                theater = TextUtils.titleCaseVenue(meta?.theater), date = meta?.date, time = meta?.time,
+                theater = TextUtils.titleCaseVenue(meta?.theater), date = meta?.date, time = ShowTime.normalize(meta?.time),
                 seat = meta?.seat, price = meta?.price, code = meta?.code,
                 confidence = meta?.confidence ?: 0.0,
                 imagePath = original.absolutePath,

@@ -6,9 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +22,7 @@ import coil.compose.AsyncImage
 import com.gios.lightpass.data.PassEntity
 import com.gios.lightpass.util.Grayscale
 import com.gios.lightpass.util.PassTimes
+import com.gios.lightpass.util.TextUtils
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,49 +31,88 @@ fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack:
     val context = LocalContext.current
     val pass by vm.observePass(id).collectAsStateWithLifecycle(initialValue = null)
     var editing by remember { mutableStateOf(false) }
-    var showOriginal by remember { mutableStateOf(false) }
+    var showTicket by remember { mutableStateOf(false) }
 
-    // Lift grayscale while viewing (needs the one-time adb grant; silent no-op otherwise)
+    // Edit fields, lifted here so the top-bar SAVE commits them.
+    var title by remember { mutableStateOf("") }
+    var theater by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("") }
+    var time by remember { mutableStateOf("") }
+    var seat by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+
+    fun seedFrom(p: PassEntity) {
+        title = p.movieTitle; theater = p.theater ?: ""; date = p.date ?: ""
+        time = p.time ?: ""; seat = p.seat ?: ""; price = p.price ?: ""
+    }
+    fun doSave() {
+        pass?.let {
+            vm.save(it.copy(
+                movieTitle = title.ifBlank { "Untitled" },
+                theater = TextUtils.titleCaseVenue(theater),
+                date = date.ifBlank { null }, time = time.ifBlank { null },
+                seat = seat.ifBlank { null }, price = price.ifBlank { null },
+            ))
+        }
+        editing = false
+    }
+
     DisposableEffect(Unit) { Grayscale.colorOn(context); onDispose { Grayscale.restore(context) } }
 
-    val p = pass
+    val barColors = TopAppBarDefaults.topAppBarColors(
+        containerColor = Color.Black, titleContentColor = Color.White,
+        navigationIconContentColor = Color.White, actionIconContentColor = Color.White,
+    )
     Scaffold(
         containerColor = Color.Black,
         topBar = {
             TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black, titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White, actionIconContentColor = Color.White,
-                ),
-                title = { Text(p?.movieTitle ?: "Pass", maxLines = 1) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                colors = barColors,
+                title = { Text(pass?.movieTitle ?: "Ticket", maxLines = 1) },
+                navigationIcon = {
+                    TextButton(onClick = onBack) { Text("BACK", color = Color.White,
+                        style = MaterialTheme.typography.labelLarge) }
+                },
                 actions = {
-                    IconButton(onClick = { showOriginal = true }) { Icon(Icons.Default.Image, "Original photo") }
-                    if (p != null) {
-                        IconButton(onClick = {
-                            if (editing) editing = false else editing = true
-                        }) { Icon(if (editing) Icons.Default.Check else Icons.Default.Edit, "Edit") }
+                    IconButton(onClick = { showTicket = true }) { Icon(Icons.Default.Image, "Ticket photo") }
+                    pass?.let { p ->
+                        TextButton(onClick = { if (editing) doSave() else { seedFrom(p); editing = true } }) {
+                            Text(if (editing) "SAVE" else "EDIT", color = Color.White,
+                                style = MaterialTheme.typography.labelLarge)
+                        }
                         IconButton(onClick = { vm.delete(p); onBack() }) { Icon(Icons.Default.Delete, "Delete") }
                     }
                 },
             )
         },
     ) { pad ->
-        if (p == null) { Box(Modifier.padding(pad)) {}; return@Scaffold }
-
+        val p = pass ?: run { Box(Modifier.padding(pad)) {}; return@Scaffold }
         if (editing) {
-            EditForm(Modifier.padding(pad), p) { updated -> vm.save(updated); editing = false }
+            EditFields(Modifier.padding(pad),
+                title, { title = it }, theater, { theater = it }, date, { date = it },
+                time, { time = it }, seat, { seat = it }, price, { price = it }, ::doSave)
         } else {
             DetailBody(Modifier.padding(pad), p, onPickMovie)
         }
     }
 
-    if (showOriginal && p != null) {
-        Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize()) {
-                ZoomableImage(File(p.imagePath))
-                IconButton(onClick = { showOriginal = false }, modifier = Modifier.padding(8.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Close", tint = Color.White)
+    if (showTicket) {
+        pass?.let { p ->
+            var original by remember { mutableStateOf(false) }
+            Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxSize()) {
+                    ZoomableImage(File(if (original) p.imagePath else (p.croppedPath ?: p.imagePath)))
+                    TextButton(onClick = { showTicket = false },
+                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                        Text("CLOSE", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                    }
+                    if (p.croppedPath != null) {
+                        TextButton(onClick = { original = !original },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+                            Text(if (original) "TICKET" else "ORIGINAL", color = Color.White,
+                                style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
                 }
             }
         }
@@ -87,12 +125,10 @@ private fun DetailBody(modifier: Modifier, p: PassEntity, onPickMovie: () -> Uni
         modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Poster hero (falls back to the cropped ticket if no poster)
         Box(Modifier.fillMaxWidth().height(360.dp).background(Color.Black), Alignment.Center) {
             AsyncImage(
                 model = p.posterUrl ?: File(p.croppedPath ?: p.imagePath),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
+                contentDescription = null, contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -100,16 +136,15 @@ private fun DetailBody(modifier: Modifier, p: PassEntity, onPickMovie: () -> Uni
         Text(p.movieTitle, style = MaterialTheme.typography.titleLarge, color = Color.White)
         p.year?.let { Text(it, color = Color(0xFFB0B0B0)) }
         TextButton(onClick = onPickMovie) {
-            Text(if (p.posterUrl == null) "Pick movie" else "Change movie", color = Color(0xFF7FB0FF))
+            Text(if (p.posterUrl == null) "PICK MOVIE" else "CHANGE MOVIE",
+                color = Color(0xFF7FB0FF), style = MaterialTheme.typography.labelSmall)
         }
         Spacer(Modifier.height(12.dp))
-
         InfoRow("BEGINS", PassTimes.beginsLabel(p) ?: p.time ?: "—", "ENDS", PassTimes.endsLabel(p) ?: "—")
         Spacer(Modifier.height(12.dp))
         InfoRow("THEATER", p.theater ?: "—", "SEAT", p.seat ?: "—")
         Spacer(Modifier.height(12.dp))
         InfoRow("DATE", PassTimes.humanDate(p.date) ?: "—", "PRICE", p.price ?: "—")
-
         p.overview?.let {
             Spacer(Modifier.height(20.dp))
             Text(it, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFCFCFCF),
@@ -122,8 +157,7 @@ private fun DetailBody(modifier: Modifier, p: PassEntity, onPickMovie: () -> Uni
 @Composable
 private fun InfoRow(l1: String, v1: String, l2: String, v2: String) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-        InfoCell(l1, v1, Modifier.weight(1f))
-        InfoCell(l2, v2, Modifier.weight(1f))
+        InfoCell(l1, v1, Modifier.weight(1f)); InfoCell(l2, v2, Modifier.weight(1f))
     }
 }
 
@@ -131,50 +165,40 @@ private fun InfoRow(l1: String, v1: String, l2: String, v2: String) {
 private fun InfoCell(label: String, value: String, modifier: Modifier) {
     Column(modifier) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A8A8A))
-        Text(value, style = MaterialTheme.typography.bodyLarge, color = Color.White,
-            fontWeight = FontWeight.Medium)
+        Text(value, style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
-private fun EditForm(modifier: Modifier, p: PassEntity, onSave: (PassEntity) -> Unit) {
-    var title by remember { mutableStateOf(p.movieTitle) }
-    var theater by remember { mutableStateOf(p.theater ?: "") }
-    var date by remember { mutableStateOf(p.date ?: "") }
-    var time by remember { mutableStateOf(p.time ?: "") }
-    var seat by remember { mutableStateOf(p.seat ?: "") }
-    var price by remember { mutableStateOf(p.price ?: "") }
-
+private fun EditFields(
+    modifier: Modifier,
+    title: String, onTitle: (String) -> Unit,
+    theater: String, onTheater: (String) -> Unit,
+    date: String, onDate: (String) -> Unit,
+    time: String, onTime: (String) -> Unit,
+    seat: String, onSeat: (String) -> Unit,
+    price: String, onPrice: (String) -> Unit,
+    onSave: () -> Unit,
+) {
     Column(
-        modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState())
-            .padding(16.dp),
+        modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Field("Title", title) { title = it }
-        Field("Theater", theater) { theater = it }
-        Field("Date (YYYY-MM-DD)", date) { date = it }
-        Field("Time (h:mm AM/PM)", time) { time = it }
-        Field("Seat", seat) { seat = it }
-        Field("Price", price) { price = it }
-        Button(
-            onClick = {
-                onSave(p.copy(
-                    movieTitle = title.ifBlank { "Untitled" },
-                    theater = com.gios.lightpass.util.TextUtils.titleCaseVenue(theater), date = date.ifBlank { null },
-                    time = time.ifBlank { null }, seat = seat.ifBlank { null },
-                    price = price.ifBlank { null },
-                ))
-            },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-        ) { Text("Save") }
+        EditField("Title", title, onTitle)
+        EditField("Theater", theater, onTheater)
+        EditField("Date (YYYY-MM-DD)", date, onDate)
+        EditField("Time (h:mm AM/PM)", time, onTime)
+        EditField("Seat", seat, onSeat)
+        EditField("Price", price, onPrice)
+        Button(onClick = onSave, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("SAVE") }
     }
 }
 
 @Composable
-private fun Field(label: String, value: String, onChange: (String) -> Unit) {
+private fun EditField(label: String, value: String, onChange: (String) -> Unit) {
     OutlinedTextField(
-        value = value, onValueChange = onChange, label = { Text(label) },
-        singleLine = true, modifier = Modifier.fillMaxWidth(),
+        value = value, onValueChange = onChange, label = { Text(label) }, singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = Color.White, unfocusedTextColor = Color.White,
             focusedLabelColor = Color(0xFFB0B0B0), unfocusedLabelColor = Color(0xFF8A8A8A),
