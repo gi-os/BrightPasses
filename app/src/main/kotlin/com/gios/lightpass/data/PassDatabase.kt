@@ -9,13 +9,18 @@ data class PassEntity(
     @PrimaryKey val id: String,
     val movieTitle: String,
     val theater: String? = null,
-    val date: String? = null,
-    val time: String? = null,
+    val date: String? = null,          // YYYY-MM-DD
+    val time: String? = null,          // h:mm AM/PM
     val seat: String? = null,
     val price: String? = null,
     val code: String? = null,
     val confidence: Double = 0.0,
-    val imagePath: String,
+    val imagePath: String,             // ORIGINAL (normalized upright) photo
+    val croppedPath: String? = null,   // ticket-only crop; falls back to imagePath
+    val posterUrl: String? = null,     // TMDb poster
+    val overview: String? = null,      // TMDb synopsis
+    val runtimeMin: Int? = null,       // TMDb runtime -> end time + auto-archive
+    val year: String? = null,
     val addedAt: Long = System.currentTimeMillis(),
 )
 
@@ -30,11 +35,14 @@ interface PassDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(pass: PassEntity)
 
+    @Update
+    suspend fun update(pass: PassEntity)
+
     @Query("DELETE FROM passes WHERE id = :id")
     suspend fun delete(id: String)
 }
 
-@Database(entities = [PassEntity::class], version = 1, exportSchema = false)
+@Database(entities = [PassEntity::class], version = 2, exportSchema = false)
 abstract class PassDatabase : RoomDatabase() {
     abstract fun passDao(): PassDao
 
@@ -44,7 +52,7 @@ abstract class PassDatabase : RoomDatabase() {
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext, PassDatabase::class.java, "lightpass.db"
-                ).build().also { INSTANCE = it }
+                ).fallbackToDestructiveMigration().build().also { INSTANCE = it }
             }
     }
 }

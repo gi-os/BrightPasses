@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
                         "viewer/{id}",
                         arguments = listOf(navArgument("id") { type = NavType.StringType }),
                     ) { entry ->
-                        ViewerScreen(vm, entry.arguments!!.getString("id")!!) { nav.popBackStack() }
+                        DetailScreen(vm, entry.arguments!!.getString("id")!!) { nav.popBackStack() }
                     }
                     composable("settings") {
                         SettingsScreen(

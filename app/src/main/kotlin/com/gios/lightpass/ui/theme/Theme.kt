@@ -35,7 +35,7 @@ private val BigType = Typography(
 @Composable
 fun LightPassTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) MonoDark else MonoLight,
+        colorScheme = MonoDark,  // always black — matches the Light Phone panel
         typography = BigType,
         content = content,
     )
