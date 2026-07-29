@@ -21,12 +21,28 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:label="Movie Tickets"
             android:theme="@style/Theme.LightPass">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- lightpass://pass/<id> opens that ticket. LightNotebook uses this to jump
+                 from a film on the calendar straight to the stub. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="lightpass" android:host="pass" />
+            </intent-filter>
         </activity>
+
+        <!-- Dates and titles only, and only for the tools listed in PassProvider. -->
+        <provider
+            android:name=".data.PassProvider"
+            android:authorities="com.gios.lightpass.passes"
+            android:exported="true"
+            android:grantUriPermissions="false" />
     </application>
 </manifest>

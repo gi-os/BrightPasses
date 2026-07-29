@@ -35,6 +35,13 @@ interface PassDao {
     @Query("SELECT * FROM passes WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): PassEntity?
 
+    /**
+     * Blocking on purpose: [com.gios.lightpass.data.PassProvider] answers on a binder
+     * thread, where a suspend function has no scope to run in.
+     */
+    @Query("SELECT * FROM passes WHERE date IS NOT NULL ORDER BY date ASC")
+    fun allWithDatesBlocking(): List<PassEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(pass: PassEntity)
 

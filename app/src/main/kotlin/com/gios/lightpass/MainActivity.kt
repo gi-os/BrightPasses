@@ -1,5 +1,7 @@
 package com.gios.lightpass
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,10 +20,32 @@ import com.gios.lightpass.ui.*
 import com.gios.lightpass.ui.theme.LightPassTheme
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * A ticket asked for from outside the app, via `lightpass://pass/<id>` — LightNotebook
+     * links here from the day a film screens. Held in a flow rather than read straight off
+     * the intent so a second tap while the app is already open still lands somewhere.
+     */
+    private val pendingPass = MutableStateFlow<String?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingPass.value = passIdIn(intent)
+    }
+
+    private fun passIdIn(intent: Intent?): String? {
+        val data: Uri = intent?.data ?: return null
+        if (data.scheme != "lightpass" || data.host != "pass") return null
+        return data.lastPathSegment?.takeIf { it.isNotBlank() }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingPass.value = passIdIn(intent)
         setContent {
             LightPassTheme {
                 val nav = rememberNavController()
@@ -47,6 +71,13 @@ class MainActivity : ComponentActivity() {
                     scanTarget = target
                     scanQr.launch(ScanOptions().setBeepEnabled(false).setPrompt(
                         if (target == "tmdb") "Scan TMDb key QR" else "Scan API key QR"))
+                }
+
+                val requestedPass by pendingPass.collectAsStateWithLifecycle()
+                LaunchedEffect(requestedPass) {
+                    val id = requestedPass ?: return@LaunchedEffect
+                    nav.navigate("viewer/$id")
+                    pendingPass.value = null
                 }
 
                 // After a pass is added, auto-open the movie picker (only if TMDb is set up).
