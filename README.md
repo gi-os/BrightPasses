@@ -22,6 +22,24 @@ Part of the [gi-os Light App collection](#the-gi-os-light-app-collection).
   ticket shows in color. The phone returns to grayscale when you close the page.
 - Room stores the collection on the device. There is no account and no server.
 
+## The wheel
+
+Turning the phone's wheel scrolls the ticket list, the detail page, the edit fields and the
+film search results. On the ticket photo it pans the image once you have pinched in, which is
+the only comfortable way to read the small print at the bottom of a stub.
+
+The wheel arrives as ordinary key events, because LightOS relabels an optical sensor's
+scancodes as `WHEEL_CCW` and `WHEEL_CW`. The activity claims them in `dispatchKeyEvent`,
+ahead of the view hierarchy, so a focused title field cannot swallow them. Notches arrive
+faster than a frame, so each one becomes a debt that a share of gets paid off per frame, and
+the first notch after a pause is held back because the wheel sits under a thumb. The page
+under the open ticket photo stands down while the photo is up.
+
+The wheel *click* and the camera button are left alone. Those belong to
+[LightControl](https://github.com/gi-os/LightControl), which owns them across the phone and
+passes bare turns through so an app can scroll per notch. The long version is in
+[LightNews](https://github.com/gi-os/LightNews#the-wheel-and-the-camera-button).
+
 ## Keys
 
 LightPass needs an Anthropic API key to parse a stub. A TMDb key is optional and only

@@ -3,6 +3,7 @@ package com.gios.lightpass
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +17,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.gios.lightpass.hw.LightKey
+import com.gios.lightpass.hw.LightKeys
+import com.gios.lightpass.hw.LocalWheelBus
+import com.gios.lightpass.hw.WheelBus
 import com.gios.lightpass.ui.*
 import com.gios.lightpass.ui.theme.LightPassTheme
 import com.journeyapps.barcodescanner.ScanContract
@@ -30,6 +35,32 @@ class MainActivity : ComponentActivity() {
      * the intent so a second tap while the app is already open still lands somewhere.
      */
     private val pendingPass = MutableStateFlow<String?>(null)
+
+    /** Wheel notches on their way to whichever screen is up. */
+    private val wheel = WheelBus()
+
+    /**
+     * Every hardware key arrives here first — `DecorView` calls the window callback before
+     * it walks the view hierarchy — which is what lets the wheel beat a focused text field.
+     * Both halves of a notch are eaten, because letting the UP through means the ticket's
+     * title field receives it as a keypress.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        when (LightKeys.of(event)) {
+            LightKey.WheelUp -> {
+                if (event.action == KeyEvent.ACTION_DOWN) wheel.send(1)
+                return true
+            }
+
+            LightKey.WheelDown -> {
+                if (event.action == KeyEvent.ACTION_DOWN) wheel.send(-1)
+                return true
+            }
+
+            else -> Unit
+        }
+        return super.dispatchKeyEvent(event)
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -88,45 +119,49 @@ class MainActivity : ComponentActivity() {
                     vm.clearJustAdded()
                 }
 
-                NavHost(nav, startDestination = "home") {
-                    composable("home") {
-                        HomeScreen(vm,
-                            onOpen = { id -> nav.navigate("viewer/$id") },
-                            onAdd = { nav.navigate("add") },
-                            onSettings = { nav.navigate("settings") })
-                    }
-                    composable("add") {
-                        AddScreen(
-                            onCamera = { nav.navigate("camera") },
-                            onAlbum = { pickImage.launch(PickVisualMediaRequest(
-                                ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                            onBack = { nav.popBackStack() })
-                    }
-                    composable("camera") {
-                        CameraScreen(
-                            newFile = { vm.newCaptureFile() },
-                            onCaptured = { file -> vm.addFromFile(file); nav.popBackStack("home", false) })
-                    }
-                    composable(
-                        "viewer/{id}",
-                        arguments = listOf(navArgument("id") { type = NavType.StringType }),
-                    ) { entry ->
-                        val id = entry.arguments!!.getString("id")!!
-                        DetailScreen(vm, id,
-                            onPickMovie = { nav.navigate("picker/$id") },
-                            onBack = { nav.popBackStack() })
-                    }
-                    composable(
-                        "picker/{id}",
-                        arguments = listOf(navArgument("id") { type = NavType.StringType }),
-                    ) { entry ->
-                        MoviePickerScreen(vm, entry.arguments!!.getString("id")!!) { nav.popBackStack() }
-                    }
-                    composable("settings") {
-                        SettingsScreen(vm,
-                            onScanApiQr = { launchScan("anthropic") },
-                            onScanTmdbQr = { launchScan("tmdb") },
-                            onBack = { nav.popBackStack() })
+                // Every screen below can reach the wheel, so a notch scrolls whatever is up
+                // rather than whatever the activity happens to know about.
+                CompositionLocalProvider(LocalWheelBus provides wheel) {
+                    NavHost(nav, startDestination = "home") {
+                        composable("home") {
+                            HomeScreen(vm,
+                                onOpen = { id -> nav.navigate("viewer/$id") },
+                                onAdd = { nav.navigate("add") },
+                                onSettings = { nav.navigate("settings") })
+                        }
+                        composable("add") {
+                            AddScreen(
+                                onCamera = { nav.navigate("camera") },
+                                onAlbum = { pickImage.launch(PickVisualMediaRequest(
+                                    ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                onBack = { nav.popBackStack() })
+                        }
+                        composable("camera") {
+                            CameraScreen(
+                                newFile = { vm.newCaptureFile() },
+                                onCaptured = { file -> vm.addFromFile(file); nav.popBackStack("home", false) })
+                        }
+                        composable(
+                            "viewer/{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.StringType }),
+                        ) { entry ->
+                            val id = entry.arguments!!.getString("id")!!
+                            DetailScreen(vm, id,
+                                onPickMovie = { nav.navigate("picker/$id") },
+                                onBack = { nav.popBackStack() })
+                        }
+                        composable(
+                            "picker/{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.StringType }),
+                        ) { entry ->
+                            MoviePickerScreen(vm, entry.arguments!!.getString("id")!!) { nav.popBackStack() }
+                        }
+                        composable("settings") {
+                            SettingsScreen(vm,
+                                onScanApiQr = { launchScan("anthropic") },
+                                onScanTmdbQr = { launchScan("tmdb") },
+                                onBack = { nav.popBackStack() })
+                        }
                     }
                 }
             }

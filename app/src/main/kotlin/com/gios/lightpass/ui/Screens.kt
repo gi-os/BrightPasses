@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gios.lightpass.data.PassEntity
+import com.gios.lightpass.hw.WheelScroll
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,7 +65,11 @@ fun HomeScreen(vm: PassViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit, o
                         style = MaterialTheme.typography.bodyLarge, color = Color.White)
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
+                // Both tabs share the one list slot, so they share its scroll position too —
+                // which is the same thing a finger would do.
+                val listState = rememberLazyListState()
+                WheelScroll(listState)
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(shown, key = { it.id }) { PassRow(it, dim = tab == 1) { onOpen(it.id) } }
                 }
             }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.gios.lightpass.ai.MovieCandidate
+import com.gios.lightpass.hw.WheelScroll
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,9 +91,13 @@ fun MoviePickerScreen(vm: PassViewModel, passId: String, onDone: () -> Unit) {
                     Text("No TMDb matches. Edit the title and search again, add a TMDb key in Settings, or Skip.",
                         color = Color.White)
                 }
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(results!!, key = { it.id }) { c ->
-                        MovieRow(c) { vm.applyMovie(passId, c); onDone() }
+                else -> {
+                    val listState = rememberLazyListState()
+                    WheelScroll(listState)
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                        items(results!!, key = { it.id }) { c ->
+                            MovieRow(c) { vm.applyMovie(passId, c); onDone() }
+                        }
                     }
                 }
             }

@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gios.lightpass.data.PassEntity
+import com.gios.lightpass.hw.WheelScroll
 import com.gios.lightpass.util.Grayscale
 import com.gios.lightpass.util.PassTimes
 import com.gios.lightpass.util.TextUtils
@@ -87,12 +88,15 @@ fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack:
         },
     ) { pad ->
         val p = pass ?: run { Box(Modifier.padding(pad)) {}; return@Scaffold }
+        // The ticket photo is an overlay, not a separate window, so the page under it is
+        // still composed and still listening. Without the gate one notch moves both.
         if (editing) {
             EditFields(Modifier.padding(pad),
                 title, { title = it }, theater, { theater = it }, date, { date = it },
-                time, { time = it }, seat, { seat = it }, price, { price = it }, ::doSave)
+                time, { time = it }, seat, { seat = it }, price, { price = it }, ::doSave,
+                wheelActive = !showTicket)
         } else {
-            DetailBody(Modifier.padding(pad), p, onPickMovie)
+            DetailBody(Modifier.padding(pad), p, onPickMovie, wheelActive = !showTicket)
         }
     }
 
@@ -120,9 +124,16 @@ fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack:
 }
 
 @Composable
-private fun DetailBody(modifier: Modifier, p: PassEntity, onPickMovie: () -> Unit) {
+private fun DetailBody(
+    modifier: Modifier,
+    p: PassEntity,
+    onPickMovie: () -> Unit,
+    wheelActive: Boolean = true,
+) {
+    val scroll = rememberScrollState()
+    WheelScroll(scroll, active = wheelActive)
     Column(
-        modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()),
+        modifier.fillMaxSize().background(Color.Black).verticalScroll(scroll),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().height(360.dp).background(Color.Black), Alignment.Center) {
@@ -179,9 +190,12 @@ private fun EditFields(
     seat: String, onSeat: (String) -> Unit,
     price: String, onPrice: (String) -> Unit,
     onSave: () -> Unit,
+    wheelActive: Boolean = true,
 ) {
+    val scroll = rememberScrollState()
+    WheelScroll(scroll, active = wheelActive)
     Column(
-        modifier.fillMaxSize().background(Color.Black).verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier.fillMaxSize().background(Color.Black).verticalScroll(scroll).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         EditField("Title", title, onTitle)

@@ -14,8 +14,8 @@ android {
         applicationId = "com.gios.lightpass"
         minSdk = 29
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.6.2"
+        versionCode = 10
+        versionName = "1.7.0"
     }
 
     signingConfigs {
