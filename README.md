@@ -35,10 +35,37 @@ faster than a frame, so each one becomes a debt that a share of gets paid off pe
 the first notch after a pause is held back because the wheel sits under a thumb. The page
 under the open ticket photo stands down while the photo is up.
 
-The wheel *click* and the camera button are left alone. Those belong to
-[LightControl](https://github.com/gi-os/LightControl), which owns them across the phone and
-passes bare turns through so an app can scroll per notch. The long version is in
+None of that needs anything else installed. There is no service, no permission and no root
+behind it. Light patched `/system/usr/keylayout/Generic.kl`, so a notch reaches whichever app
+holds focus as an ordinary key event, and LightPass handles it itself. The long version is in
 [LightNews](https://github.com/gi-os/LightNews#the-wheel-and-the-camera-button).
+
+The wheel *click* and the camera button are left alone, and
+[LightControl](https://github.com/gi-os/LightControl) is the optional app that picks them up.
+It adds brightness on hold-and-turn, the flashlight on a tap, and the camera on the camera
+button. Every one of those is rebindable, tap and hold apart, to any app on the phone. Apps
+with no wheel code of their own get brightness or a synthetic-swipe scroll from it as well.
+
+Installing it does not take scrolling away from LightPass. It passes bare turns through to
+`com.gios.*`, `com.lightfastread` and `com.lightrss.reader` deliberately, so the ticket list
+keeps its own per-notch scroll.
+
+```bash
+# Optional: LightControl, for brightness, the flashlight and the camera button
+adb install -r LightControl-v1.0.x.apk
+
+# The key service. NOTE: this setting is a list, and this command REPLACES it —
+# if you also run LightVoice's push-to-talk, colon-join both components instead.
+adb shell settings put secure enabled_accessibility_services \
+  com.gios.lightcontrol/com.gios.lightcontrol.keys.ControlService
+adb shell settings put secure accessibility_enabled 1
+
+# Brightness, and the level readout + opening apps from the service
+adb shell appops set com.gios.lightcontrol WRITE_SETTINGS allow
+adb shell appops set com.gios.lightcontrol SYSTEM_ALERT_WINDOW allow
+```
+
+The latest build is at <https://github.com/gi-os/LightControl/releases/latest>.
 
 ## Keys
 
