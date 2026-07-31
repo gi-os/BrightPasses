@@ -6,6 +6,7 @@ import com.gios.lightpass.ai.MovieCandidate
 import com.gios.lightpass.ai.PassParser
 import com.gios.lightpass.ai.TmdbClient
 import com.gios.lightpass.util.AutoCrop
+import com.gios.lightpass.util.CodeReader
 import com.gios.lightpass.util.ImageUtils
 import com.gios.lightpass.util.ShowTime
 import com.gios.lightpass.util.TextUtils
@@ -90,6 +91,46 @@ class PassRepository(private val context: Context) {
             )
         )
         upright.recycle()
+
+        // Read the ticket's own code off the photograph now, while the ticket is the thing on
+        // screen. It is the slow part of adding a pass — seconds, not milliseconds — so it happens
+        // after the row exists rather than before: the ticket appears, then its barcode fills in.
+        runCatching {
+            CodeReader.scan(original.absolutePath, croppedPath)?.let { scanned ->
+                dao.getById(id)?.let { row ->
+                    dao.update(row.copy(scannedCode = scanned.text, scannedFormat = scanned.format))
+                }
+            }
+        }
         return id
+    }
+
+    /**
+     * Scan the photos of tickets that were added before any of this existed.
+     *
+     * Bounded by [MAX_BACKFILL] a launch, because each one is seconds of decoding and there is no
+     * hurry — the queue only shrinks, since every ticket that can be read gets written.
+     *
+     * A ticket that genuinely has no code is re-scanned on every launch, and that is deliberate: the
+     * alternative is a third column whose only job is to remember "asked, found nothing", and a few
+     * seconds of background work on an old pass is the cheaper of the two mistakes.
+     */
+    suspend fun backfillScannedCodes() {
+        val pending = runCatching { dao.neverScanned() }.getOrNull() ?: return
+        for (pass in pending.take(MAX_BACKFILL)) {
+            val scanned = runCatching {
+                CodeReader.scan(pass.imagePath, pass.croppedPath)
+            }.getOrNull() ?: continue
+            runCatching {
+                dao.getById(pass.id)?.let {
+                    dao.update(it.copy(scannedCode = scanned.text, scannedFormat = scanned.format))
+                }
+            }
+        }
+    }
+
+    private companion object {
+        /** Tickets read per launch. Enough to catch up a shelf in a couple of openings. */
+        const val MAX_BACKFILL = 8
     }
 }

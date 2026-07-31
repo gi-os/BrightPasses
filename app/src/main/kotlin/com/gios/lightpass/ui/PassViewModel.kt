@@ -19,6 +19,13 @@ data class PassLists(val active: List<PassEntity>, val archived: List<PassEntity
 class PassViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = PassRepository(app)
 
+    init {
+        // Tickets added before the app could read a barcode still have the code sitting in their
+        // photograph. Catch a few up in the background on each launch — nothing waits on it, and a
+        // ticket whose code arrives while you're looking at the shelf is the point.
+        viewModelScope.launch(Dispatchers.IO) { runCatching { repo.backfillScannedCodes() } }
+    }
+
     val lists: StateFlow<PassLists> =
         repo.observeAll()
             .map { all ->

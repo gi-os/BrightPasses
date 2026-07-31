@@ -111,11 +111,52 @@ is no shared package to pull it from automatically. `LightFont.kt`'s
 rather than bundling a font file) is the one piece most worth keeping identical across
 repos, since it's what makes every sideloaded app match LightOS's own chrome.
 
+## The code on the ticket
+
+The barcode at the foot of a pass is **decoded from the photograph**, not generated from the text a
+model read. That distinction is the whole feature. A code re-encoded from a booking reference scans
+only if the cinema's system looks that reference up, and most encode an internal id instead — so the
+first version of this looked right and did nothing. The real code was in the photo the whole time.
+
+Decoding a photograph of a code is much harder than a viewfinder aimed at one, so it is attempted
+across four axes and stops at the first two-dimensional hit:
+
+- **Scale** — 1600, 1000, 2400 and 640 px on the long edge. A 12MP still of a code an inch across
+  gives the binarizer a module a few pixels wide surrounded by grain; downscaling averages the grain
+  out, and past a point takes the code with it.
+- **Quarter turn** — ZXing's 1D readers scan horizontal rows and `RGBLuminanceSource` doesn't
+  implement rotation, so a barcode printed down the side of a ticket is invisible until the bitmap
+  itself is turned.
+- **Binarizer** — `HybridBinarizer` for uneven lighting (most phone photos), `GlobalHistogramBinarizer`
+  for a flat screenshot its local blocks over-think. They fail on different pictures.
+- **Inversion** — a ticket held up on someone else's phone in dark mode is a white code on black,
+  which ZXing will not find at all.
+
+The crop is tried before the whole frame (less paper, fewer false edges), QR / PDF417 / Aztec /
+Data Matrix / Code 128 / Code 39 / ITF are all in the hint set, and a scan is bounded to six seconds
+so a ticket with no code doesn't cost the same as one with. Where two codes are found — tickets often
+carry a QR for the app and a linear code for the usher's handheld — the 2D one wins, then the longer
+payload. A short 1D read is discarded outright: perforations and table rules will occasionally give
+up a six-character Code 39, while a 2D symbology's checksums make a false positive effectively
+impossible.
+
+The **symbology is stored alongside the payload** and the code is redrawn as itself. A PDF417 payload
+re-encoded as a QR carries the same characters and is a different code as far as a scanner is
+concerned. Verified by round-tripping all seven formats through ZXing — encode, decode, compare — and
+that test also caught ZXing not honouring the size you ask for: a PDF417 requested at 910x340 comes
+back 778x188, and drawing it at the requested size would resample the bars and defeat the point of
+generating at device pixels.
+
+Built on `com.google.zxing:core` the way [LightQR](https://github.com/gi-os/LightQR) does it, for the
+reason that app's own comment gives: pure Java, and LightOS has no Play Services, so ML Kit's barcode
+scanner would compile, install, and silently never work.
+
 ## Version history
 
 | Version | Commit | Change |
 | --- | --- | --- |
-| v1.8.0 | (this release) | Year-less dates resolve to the next occurrence in Kotlin instead of being guessed by the model; scannable booking code at the foot of the ticket, with a brightness boost and an editable code field |
+| v1.9.0 | (this release) | **The barcode is now read off the photograph** rather than re-encoded from the parsed reference, so what's on screen is the cinema's own payload in the cinema's own symbology. Seven symbologies attempted over four scales, two rotations, two binarizers and an inverted pass; tickets already on the shelf are backfilled in the background. Real Room migration, so a schema change no longer empties the shelf |
+| v1.8.0 | `c7fdbb8` | Year-less dates resolve to the next occurrence in Kotlin instead of being guessed by the model; scannable booking code at the foot of the ticket, with a brightness boost and an editable code field |
 | v1.7.0 | `80f0fa1` | Scroll the ticket list, detail page and search results with the hardware wheel |
 | v1.6.2 | `95a588c` | Bump to 1.6.2 for the provider release (ships the `033c0cf` shelf-provider commit) |
 | v1.6.1 | `d9b8e2c` | Bump to 1.6.1 so the launcher icon ships as a new release (app previously had no `android:icon`) |

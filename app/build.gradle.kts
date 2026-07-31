@@ -14,8 +14,8 @@ android {
         applicationId = "com.gios.lightpass"
         minSdk = 29
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.8.0"
+        versionCode = 12
+        versionName = "1.9.0"
     }
 
     signingConfigs {
@@ -75,6 +75,9 @@ dependencies {
 
     // QR scanning (key entry)
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    // Named explicitly rather than left to the embedded scanner's transitive pull: the readers and
+    // writers here are the feature, not an incidental dependency of a QR-scanning activity.
+    implementation("com.google.zxing:core:3.5.3")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 

@@ -31,6 +31,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gios.lightpass.data.PassEntity
 import com.gios.lightpass.hw.WheelScroll
+import androidx.compose.ui.text.style.TextOverflow
+import com.google.zxing.BarcodeFormat
 import com.gios.lightpass.util.BarcodeRender
 import com.gios.lightpass.util.BookingCode
 import com.gios.lightpass.util.Grayscale
@@ -127,9 +129,12 @@ fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack:
 
     if (showCode) {
         pass?.let { p ->
-            BookingCode.normalize(p.code)?.let { reference ->
+            // The ticket's own code if it was read off the photograph, otherwise the reference
+            // redrawn. Same overlay either way — what differs is whether it will scan.
+            ticketCode(p)?.let { shown ->
                 BookingCodeOverlay(
-                    code = reference,
+                    code = shown.content,
+                    format = shown.format,
                     onShowPhoto = { showCode = false; showTicket = true },
                     onClose = { showCode = false },
                 )
@@ -202,31 +207,57 @@ private fun DetailBody(
         }
         // Bottom of the ticket, where every pass app puts the code and where a thumb already is.
         Spacer(Modifier.height(28.dp))
-        BookingCodeSection(p.code, onEnlargeCode, onShowPhoto)
+        BookingCodeSection(p, onEnlargeCode, onShowPhoto)
         Spacer(Modifier.height(28.dp))
     }
 }
 
 /**
- * The generated code, at the foot of the ticket.
+ * What a code on this page is, and which of the three kinds you are looking at.
  *
- * It is generated, and the label says so, because a barcode is not information — it is whatever
- * string the cinema's own system encoded, and all we have is the reference a model read off a
- * photograph. Reproduce that string and a scanner that looks the reference up will very likely
- * take it; get one character wrong, or meet a cinema that encodes an internal id instead, and it
- * will not. So the photo of the actual barcode stays one tap away from here, and nothing on this
- * page promises anything.
+ * The ticket's own code, read off the photograph, is the only one that reliably scans: it is the
+ * cinema's payload byte for byte, in the symbology the cinema printed. The first version of this
+ * feature had only the second kind — a reference a model read off the paper, re-encoded — which
+ * works when the scanner looks that reference up and does nothing at all when it looks up an
+ * internal id, which is most of the time. Both are shown, they are labelled differently, and the
+ * photo of the real thing is one tap away from all three.
  */
+private class TicketCode(
+    val content: String,
+    val format: BarcodeFormat,
+    /** True when this came off the ticket rather than out of the parsed text. */
+    val fromTicket: Boolean,
+)
+
+/** The best code available for this pass: the scanned one, else the reference, else none. */
+private fun ticketCode(p: PassEntity): TicketCode? {
+    val scanned = p.scannedCode?.trim()?.takeIf { it.isNotEmpty() }
+    val scannedFormat = BarcodeRender.formatByName(p.scannedFormat)
+    if (scanned != null && scannedFormat != null) {
+        return TicketCode(scanned, scannedFormat, fromTicket = true)
+    }
+    val reference = BookingCode.normalize(p.code) ?: return null
+    val format = when (BookingCode.symbologyFor(reference)) {
+        Symbology.QR -> BarcodeFormat.QR_CODE
+        Symbology.CODE_128 -> BarcodeFormat.CODE_128
+        Symbology.PDF417 -> BarcodeFormat.PDF_417
+    }
+    return TicketCode(reference, format, fromTicket = false)
+}
+
 @Composable
-private fun BookingCodeSection(rawCode: String?, onEnlarge: () -> Unit, onShowPhoto: () -> Unit) {
-    val code = remember(rawCode) { BookingCode.normalize(rawCode) }
+private fun BookingCodeSection(p: PassEntity, onEnlarge: () -> Unit, onShowPhoto: () -> Unit) {
+    val shown = remember(p.scannedCode, p.scannedFormat, p.code) { ticketCode(p) }
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("BOOKING CODE", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A8A8A))
+        Text(
+            if (shown?.fromTicket == true) "TICKET CODE" else "BOOKING CODE",
+            style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A8A8A),
+        )
         Spacer(Modifier.height(10.dp))
-        if (code == null) {
+        if (shown == null) {
             Text(
                 "No code was read off this ticket. The barcode is on the photo.",
                 style = MaterialTheme.typography.bodyMedium, color = Color(0xFF8A8A8A),
@@ -236,13 +267,18 @@ private fun BookingCodeSection(rawCode: String?, onEnlarge: () -> Unit, onShowPh
             // Measured rather than fixed: the card has to fit inside the column's padding on a
             // 308dp-wide panel, and a hardcoded width that fits today clips on anything narrower.
             BoxWithConstraints(Modifier.fillMaxWidth()) {
-                BarcodeCard(code, maxWidth - CARD_QUIET_ZONE * 2,
+                BarcodeCard(shown, maxWidth - CARD_QUIET_ZONE * 2,
                     Modifier.clickable(onClick = onEnlarge))
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                "Generated from the code above. Tap to enlarge and brighten. If the scanner won't " +
-                    "take it, show the ticket photo.",
+                if (shown.fromTicket) {
+                    "Read off your ticket, so this is the cinema's own code. Tap to enlarge and " +
+                        "brighten."
+                } else {
+                    "Generated from the booking reference — it only scans if the cinema looks that " +
+                        "reference up. If it won't take it, show the ticket photo."
+                },
                 style = MaterialTheme.typography.bodyMedium, color = Color(0xFF8A8A8A),
                 textAlign = TextAlign.Center,
             )
@@ -256,8 +292,8 @@ private fun BookingCodeSection(rawCode: String?, onEnlarge: () -> Unit, onShowPh
 
 /** White card: the code, then the reference beneath it in monospace, both on white. */
 @Composable
-private fun BarcodeCard(code: String, budget: Dp, modifier: Modifier = Modifier) {
-    val generated = rememberGeneratedCode(code, budget)
+private fun BarcodeCard(shown: TicketCode, budget: Dp, modifier: Modifier = Modifier) {
+    val generated = rememberGeneratedCode(shown, budget)
     Surface(color = Color.White, shape = RoundedCornerShape(4.dp), modifier = modifier) {
         Column(
             Modifier.padding(CARD_QUIET_ZONE),
@@ -269,15 +305,19 @@ private fun BarcodeCard(code: String, budget: Dp, modifier: Modifier = Modifier)
             } else {
                 Image(
                     bitmap = generated.image,
-                    contentDescription = "Booking code $code",
+                    contentDescription = "Ticket code ${shown.content}",
                     // Drawn at exactly the pixels it was generated at, with filtering off. Let
                     // the view resample it and the panel renders grey where a bar edge was.
                     filterQuality = FilterQuality.None,
                     modifier = Modifier.size(generated.width, generated.height),
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(code, color = Color.Black, fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp, letterSpacing = 1.sp, textAlign = TextAlign.Center)
+                // The payload itself, which for a scanned 2D code can be long and is not meant to
+                // be read — it is there so a human can check the machine agrees with the paper.
+                Text(shown.content, color = Color.Black, fontFamily = FontFamily.Monospace,
+                    fontSize = if (shown.content.length > 24) 10.sp else 14.sp,
+                    letterSpacing = if (shown.content.length > 24) 0.sp else 1.sp,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
             }
         }
     }
@@ -297,13 +337,12 @@ private class GeneratedCode(val image: ImageBitmap, val width: Dp, val height: D
  * came back, at its own pixels.
  */
 @Composable
-private fun rememberGeneratedCode(code: String, budget: Dp): GeneratedCode? {
-    val symbology = remember(code) { BookingCode.symbologyFor(code) }
+private fun rememberGeneratedCode(shown: TicketCode, budget: Dp): GeneratedCode? {
     val density = LocalDensity.current
     val widthPx = with(density) { budget.roundToPx() }
-    val heightPx = with(density) { codeHeight(symbology, budget).roundToPx() }
-    val image = remember(code, symbology, widthPx, heightPx) {
-        BarcodeRender.bitmap(code, symbology, widthPx, heightPx)?.asImageBitmap()
+    val heightPx = with(density) { codeHeight(shown.format, budget).roundToPx() }
+    val image = remember(shown.content, shown.format, widthPx, heightPx) {
+        BarcodeRender.bitmap(shown.content, shown.format, widthPx, heightPx)?.asImageBitmap()
     } ?: return null
     return with(density) { GeneratedCode(image, image.width.toDp(), image.height.toDp()) }
 }
@@ -317,13 +356,19 @@ private fun rememberGeneratedCode(code: String, budget: Dp): GeneratedCode? {
  * than back through the detail page.
  */
 @Composable
-private fun BookingCodeOverlay(code: String, onShowPhoto: () -> Unit, onClose: () -> Unit) {
+private fun BookingCodeOverlay(
+    code: String,
+    format: BarcodeFormat,
+    onShowPhoto: () -> Unit,
+    onClose: () -> Unit,
+) {
     BrightWhileVisible()
     Surface(color = Color.White, modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val generated = rememberGeneratedCode(code, maxWidth - OVERLAY_MARGIN * 2)
+            val shown = remember(code, format) { TicketCode(code, format, fromTicket = false) }
+            val generated = rememberGeneratedCode(shown, maxWidth - OVERLAY_MARGIN * 2)
             if (generated != null) {
-                ZoomableBitmap(generated.image, "Booking code $code",
+                ZoomableBitmap(generated.image, "Ticket code $code",
                     generated.width, generated.height)
             }
             TextButton(onClick = onClose,
@@ -360,10 +405,10 @@ private val OVERLAY_MARGIN = 12.dp
  * ZXing to scale the modules into; 1D bars have no natural height at all, and a Code 128 that is
  * too short is one a handheld's scan line keeps sliding off.
  */
-private fun codeHeight(symbology: Symbology, width: Dp): Dp = when (symbology) {
-    Symbology.QR -> width
-    Symbology.CODE_128 -> width * 0.36f
-    Symbology.PDF417 -> width * 0.42f
+private fun codeHeight(format: BarcodeFormat, width: Dp): Dp = when {
+    BarcodeRender.isTwoD(format) && format == BarcodeFormat.PDF_417 -> width * 0.42f
+    BarcodeRender.isTwoD(format) -> width
+    else -> width * 0.36f
 }
 
 @Composable
