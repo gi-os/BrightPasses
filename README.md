@@ -4,7 +4,7 @@ Movie ticket stubs on the Light Phone III. Photograph a stub, and LightPass read
 title, theater, date, time, seat and price off the paper with Claude Haiku, then keeps
 the ticket in a local collection sorted by showtime, moving it to an archive after the
 film ends. LightOS shows the tool as **Movie Tickets**. Package `com.gios.lightpass`.
-Current release: **v1.7.0**.
+Current release: **v1.8.0**.
 
 **This repo is also the shared skeleton.** Every other Light Phone III app in this
 collection that needs a camera — LightNotebook, LightRSS's QR scanner, LightPods'
@@ -53,16 +53,30 @@ Anthropic key (below) to skip the typing; add a TMDb key to get posters.
 ## Usage
 
 - Capture or import → Claude Haiku returns title, theater, date, time, seat, price, a
-  confidence score, and a bounding box. LightPass crops to that box and keeps the full
-  photo behind a zoomable viewer.
+  booking code, a confidence score, and a bounding box. LightPass crops to that box and
+  keeps the full photo behind a zoomable viewer.
+- **A date with no year on it is read as upcoming.** Stubs print "DEC 18" and leave the
+  year off, so the model is told to return `MM-DD` in that case rather than guess, and
+  `util/TicketDate.kt` picks the next occurrence of that date — this year if it hasn't
+  passed, next year if it has, with a two-day grace window so a late showing photographed
+  after midnight doesn't jump eleven months forward. A year actually printed on the ticket
+  is kept; a year the model appears to have invented (2024, on a ticket photographed in
+  2026) is not. `app/src/test/kotlin` covers the rule.
+- **A scannable code sits at the foot of the ticket**, generated from the booking
+  reference with ZXing — Code 128 for a short alphanumeric reference, QR once it grows or
+  picks up punctuation, PDF417 for an airline-length string. Tapping it fills the screen
+  on white and pins the brightness up while it's there. It is labelled as generated,
+  because it only scans if the cinema encoded that same string; the real barcode is in the
+  photo, which stays one tap away. The booking code is editable, since one wrong character
+  makes the generated code useless.
 - A film search list lets you correct the poster/title match if the parser picked the
   wrong one.
 - Every field stays editable; **SAVE** in the top bar commits a change.
 - Tickets sort by showtime; dates render as "August 6th"; theater names are
   title-cased.
 - The wheel scrolls the ticket list, the detail page, edit fields and film search
-  results, and pans the stub photo once you've pinched in — the only way to read the
-  small print at the bottom of a stub. It arrives as an ordinary key event
+  results, and pans the stub photo or the enlarged booking code once you've pinched in —
+  the only way to read the small print at the bottom of a stub. It arrives as an ordinary key event
   (`WHEEL_CCW`/`WHEEL_CW`, claimed in `dispatchKeyEvent` ahead of the view hierarchy);
   [LightControl](https://github.com/gi-os/LightControl) is the separate, optional app
   that owns the wheel click and the camera button phone-wide.
@@ -72,14 +86,19 @@ Anthropic key (below) to skip the typing; add a TMDb key to get posters.
 
 ```sh
 ./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
 ```
 
-CI (`.github/workflows/build.yml`) builds the debug APK on every push to `main` and
-publishes/updates a GitHub Release tagged `v${versionName}` — **the tag does not change
-between pushes that don't bump `versionName`**, so an unrelated commit (docs, a
-provider addition) silently replaces the APK inside the existing release rather than
-creating a new one. Obtainium sees nothing new in that case even though CI went green.
-Bump `versionName` and `versionCode` in `app/build.gradle.kts` whenever the change
+The unit tests are plain JUnit over `util/TicketDate.kt` and `util/BookingCode.kt`, which
+import nothing from `android.*` for exactly that reason — no Robolectric, no device, and
+the date rule gets checked on every push.
+
+CI (`.github/workflows/build.yml`) tests and builds every branch, and publishes only from
+`main`, where it also creates or updates a GitHub Release tagged `v${versionName}` —
+**the tag does not change between pushes that don't bump `versionName`**, so an unrelated
+commit (docs, a provider addition) silently replaces the APK inside the existing release
+rather than creating a new one. Obtainium sees nothing new in that case even though CI went
+green. Bump `versionName` and `versionCode` in `app/build.gradle.kts` whenever the change
 should actually reach users as an update.
 
 ## Contributing
@@ -96,6 +115,7 @@ repos, since it's what makes every sideloaded app match LightOS's own chrome.
 
 | Version | Commit | Change |
 | --- | --- | --- |
+| v1.8.0 | (this release) | Year-less dates resolve to the next occurrence in Kotlin instead of being guessed by the model; scannable booking code at the foot of the ticket, with a brightness boost and an editable code field |
 | v1.7.0 | `80f0fa1` | Scroll the ticket list, detail page and search results with the hardware wheel |
 | v1.6.2 | `95a588c` | Bump to 1.6.2 for the provider release (ships the `033c0cf` shelf-provider commit) |
 | v1.6.1 | `d9b8e2c` | Bump to 1.6.1 so the launcher icon ships as a new release (app previously had no `android:icon`) |
