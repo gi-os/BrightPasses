@@ -4,7 +4,7 @@ Movie ticket stubs on the Light Phone III. Photograph a stub, and LightPass read
 title, theater, date, time, seat and price off the paper with Claude Haiku, then keeps
 the ticket in a local collection sorted by showtime, moving it to an archive after the
 film ends. LightOS shows the tool as **Movie Tickets**. Package `com.gios.lightpass`.
-Current release: **v1.8.0**.
+Current release: **v1.9.0**.
 
 **This repo is also the shared skeleton.** Every other Light Phone III app in this
 collection that needs a camera — LightNotebook, LightRSS's QR scanner, LightPods'
