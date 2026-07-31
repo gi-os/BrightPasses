@@ -8,6 +8,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 
 data class ParsedPass(
@@ -37,17 +38,25 @@ object PassParser {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private val prompt = """
+    /**
+     * Today's date goes in because the model has no clock and the stub usually has no year.
+     *
+     * This used to read "infer year if absent (use current year 2026)" — a literal in the source,
+     * which goes stale and invites exactly the guess it was meant to prevent. It answered 2024.
+     * Now the model is told to leave the year off whenever the paper leaves it off, and
+     * [com.gios.lightpass.util.TicketDate] decides it afterwards from a real calendar.
+     */
+    private fun prompt(today: LocalDate) = """
         Analyze this image of a movie ticket and extract the following.
         Return ONLY valid JSON, no markdown, no backticks, no explanation.
         {
           "movieTitle": "exact movie title on ticket",
           "theater": "theater/cinema name",
-          "date": "YYYY-MM-DD, infer year if absent (use current year 2026)",
+          "date": "YYYY-MM-DD if a year is printed on the ticket, otherwise MM-DD",
           "time": "h:mm AM/PM",
           "seat": "seat/row info or null",
           "price": "price with $ or null",
-          "code": "alphanumeric code under the barcode or null",
+          "code": "booking/confirmation reference, exactly as printed, or null",
           "confidence": 0.95,
           "box": [x0, y0, x1, y1]
         }
@@ -57,7 +66,13 @@ object PassParser {
         Exclude any hand, table, background, or empty margins outside the ticket.
         Trace the actual paper edges. Only use [0,0,1000,1000] if the paper truly
         bleeds to every edge of the photo.
-        Rules: date is ISO; time is 12-hour with AM/PM.
+        Today is $today. A ticket with no year printed on it is for an UPCOMING showing,
+        so do not guess the year: return MM-DD and let the app work it out. Return a
+        four-digit year only when you can actually read one on the paper.
+        "code" is the booking or confirmation reference: the human-readable string printed
+        under or beside the barcode, copied character for character. Never invent one and
+        never substitute a seat number or an order total — return null if none is legible.
+        Rules: time is 12-hour with AM/PM.
         Read AM/PM carefully from the ticket. Movie showings are almost always
         matinee or evening (11:00 AM - 11:59 PM); a 1-6 AM showtime is almost
         certainly a misread PM. confidence 0-1 over all fields.
@@ -86,7 +101,7 @@ object PassParser {
                             put("type", "base64"); put("media_type", "image/jpeg"); put("data", b64)
                         })
                     })
-                    .put(JSONObject().apply { put("type", "text"); put("text", prompt) }))
+                    .put(JSONObject().apply { put("type", "text"); put("text", prompt(LocalDate.now())) }))
             }))
         }.toString()
 

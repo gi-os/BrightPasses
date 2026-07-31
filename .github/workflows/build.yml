@@ -2,7 +2,6 @@ name: Build & Release APK
 
 on:
   push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +18,9 @@ jobs:
           java-version: '17'
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
@@ -37,7 +39,11 @@ jobs:
           path: MovieTickets-v${{ steps.ver.outputs.version }}.apk
           if-no-files-found: error
 
+      # Only main publishes. A branch push builds and runs the tests and stops there: this
+      # workflow tags v${versionName} and marks it latest, so a branch reaching this step would
+      # hand the phone an unreviewed APK through Obtainium.
       - name: Publish / update GitHub Release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.version }}

@@ -9,6 +9,7 @@ import com.gios.lightpass.util.AutoCrop
 import com.gios.lightpass.util.ImageUtils
 import com.gios.lightpass.util.ShowTime
 import com.gios.lightpass.util.TextUtils
+import com.gios.lightpass.util.TicketDate
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 import java.util.UUID
@@ -77,7 +78,11 @@ class PassRepository(private val context: Context) {
             PassEntity(
                 id = id,
                 movieTitle = if (title.isNullOrBlank()) "Ticket ${id.take(4)}" else title,
-                theater = TextUtils.titleCaseVenue(meta?.theater), date = meta?.date, time = ShowTime.normalize(meta?.time),
+                theater = TextUtils.titleCaseVenue(meta?.theater),
+                // The model is asked for MM-DD when the paper has no year, and is not always
+                // asked politely enough; whatever comes back, the year is settled here.
+                date = TicketDate.resolveFromModel(meta?.date),
+                time = ShowTime.normalize(meta?.time),
                 seat = meta?.seat, price = meta?.price, code = meta?.code,
                 confidence = meta?.confidence ?: 0.0,
                 imagePath = original.absolutePath,
