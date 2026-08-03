@@ -32,7 +32,7 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = 12
-        versionName = "1.10.0"
+        versionName = "1.11.0"
 
         buildConfigField("String", "REPORT_TOKEN", "\"$reportToken\"")
         buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")
@@ -66,6 +66,10 @@ android {
 }
 
 dependencies {
+    // Shake-to-report, and the shared hardware/type helpers. Was a vendored copy of the
+    // same code under com.gios.lightpass.report until this version.
+    implementation("com.gios:light-common:1.0.1")
+
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.core:core-ktx:1.15.0")
