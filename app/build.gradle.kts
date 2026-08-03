@@ -1,8 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
+}
+
+/**
+ * The key shake-to-report posts issues with. Never in the repository: `local.properties` is
+ * ignored by git, and CI hands it in from a repository secret. An empty string is a working
+ * build — reports queue on the phone and go out from a later one that has the key.
+ */
+val reportToken: String = run {
+    val local = rootProject.file("local.properties")
+    val fromFile = if (local.exists()) {
+        Properties().apply { local.inputStream().use { load(it) } }.getProperty("reportToken")
+    } else {
+        null
+    }
+    fromFile ?: System.getenv("REPORT_TOKEN") ?: ""
 }
 
 android {
@@ -15,7 +32,10 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = 12
-        versionName = "1.9.0"
+        versionName = "1.10.0"
+
+        buildConfigField("String", "REPORT_TOKEN", "\"$reportToken\"")
+        buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")
     }
 
     signingConfigs {
@@ -38,7 +58,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    // buildConfig carries REPORT_TOKEN into the app; see the reportToken block above.
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {

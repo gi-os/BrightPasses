@@ -2,6 +2,13 @@ name: Build & Release APK
 
 on:
   push:
+    # Was a bare `push:`, which released from every branch — so a feature branch or a
+    # check run published straight to the phone. Releases come from main only.
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/workflows/check.yml'
+      - 'signing-fingerprint.txt'
   workflow_dispatch:
 
 permissions:
@@ -24,6 +31,10 @@ jobs:
 
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
+        env:
+          # Shake-to-report posts issues with this. Absent, the build still works —
+          # reports queue on the phone until a build that has the key installs over it.
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
 
       - name: Read version name
         id: ver
@@ -31,6 +42,20 @@ jobs:
           VN=$(grep 'versionName' app/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
           echo "version=$VN" >> "$GITHUB_OUTPUT"
           cp app/build/outputs/apk/debug/app-debug.apk "MovieTickets-v${VN}.apk"
+
+      # Android identifies an app by (packageName, signing certificate). If the cert ever
+      # drifts, Obtainium updates fail with an opaque "Failure: Invalid" and the only way
+      # back is uninstall-and-lose-your-stubs. This shipped broken in LightFastread for 11
+      # builds before anyone noticed, so pin it and fail the build instead.
+      - name: Verify signing certificate
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          ACTUAL=$("$APKSIGNER" verify --print-certs MovieTickets-v*.apk \
+            | grep -i 'SHA-256 digest' | head -1 | sed -E 's/.*[Dd]igest:[[:space:]]*//' | tr -d ' :' | tr 'A-F' 'a-f')
+          EXPECTED=$(tr -d ' :\n' < signing-fingerprint.txt | tr 'A-F' 'a-f')
+          echo "expected $EXPECTED"
+          echo "actual   $ACTUAL"
+          [ "$ACTUAL" = "$EXPECTED" ] || { echo '::error::signing certificate drifted'; exit 1; }
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

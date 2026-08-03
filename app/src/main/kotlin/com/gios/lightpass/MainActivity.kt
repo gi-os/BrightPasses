@@ -26,6 +26,8 @@ import com.gios.lightpass.ui.theme.LightPassTheme
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.gios.lightpass.report.CrashLog
+import com.gios.lightpass.report.ReportOverlay
 
 class MainActivity : ComponentActivity() {
 
@@ -76,6 +78,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // First thing, before anything else can throw: the handler chains onto whatever is
+        // already installed and only writes a file, so it is safe this early.
+        CrashLog.install(this)
         pendingPass.value = passIdIn(intent)
         setContent {
             LightPassTheme {
@@ -164,6 +169,10 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                // Shake to report, the crash offer on next launch, and the app's own noticed
+                // failures. A sibling, not a wrapper — the sheet is its own window, so it covers
+                // the app whether or not it contains it.
+                ReportOverlay()
             }
         }
     }
