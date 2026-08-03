@@ -11,7 +11,9 @@ package com.gios.lightpass.report
  */
 object ReportApp {
     /** How the app calls itself in an issue title and in "X could not …". */
-    const val NAME = "LightPass"
+    // The repo is LightPass; the app on the phone is MovieTickets. The report should say what
+    // Gio sees in the launcher, the same way LightCamera's reports say "Roll".
+    const val NAME = "MovieTickets"
 
     /** The label the triage skill routes on. One per app, matching the light-reports convention. */
     const val LABEL = "pass"
