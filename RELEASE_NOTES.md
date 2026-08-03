@@ -1,27 +1,24 @@
-## MovieTickets v1.10 — Shake to report, and the release pipeline stops leaking
+## MovieTickets v1.11 — The shake asks instead of interrupting
 
-**One feature and two build fixes, one of which was releasing from every branch.**
+**Shaking the phone no longer throws a sheet over what you were doing. It puts a small
+"SEND ERROR?" chip in the bottom corner, and only tapping that opens the report.**
 
-### Every push was cutting a release
+The first version got the shape of the question wrong. A shake is a gesture the phone can
+misread — and the cost of misreading it was paid every single time, because a full-screen sheet
+landed on top of whatever you were reading to ask about a problem that may not have existed. On a
+3.92" panel that is a bad trade against a report that might not be real.
 
-The build workflow was triggered by a bare `push:` with no branch filter, so any push to any
-branch built and published a release — a scratch branch, an experiment, a half-finished idea went
-straight to the phone through Obtainium. It is `branches: [main]` now, with docs and CI-only
-changes ignored, and a separate check workflow that compiles and tests every other branch without
-publishing anything.
+So the offer is small, it sits out of the way, and **silence is an answer**. Ignore the chip for
+four seconds and it fades. Nothing is lost by ignoring it: an unsent crash log stays on disk and
+is offered again on the next launch, and a failure the app noticed itself will not ask again for
+an hour. Only the tap costs anything, and only the tap opens the sheet.
 
-### The signing certificate is pinned
+A crash offer stands for eight seconds rather than four. It is the one offer that cannot be
+reconstructed from nothing if you miss it.
 
-Android identifies an app by (package name, signing certificate). If the cert ever drifts,
-Obtainium updates fail with an opaque `Failure: Invalid` and the only way back is uninstalling and
-losing your stubs. This shipped broken in LightFastread for eleven builds before anyone noticed.
-`signing-fingerprint.txt` now holds the expected SHA-256 and the build fails if what came out does
-not match it.
+The chip is drawn in its own window rather than placed in the layout, so it lands in the same
+corner in every app regardless of how that app is built, and it cannot swallow a tap meant for
+what is underneath it.
 
-### Shake the phone to report a bug
-
-Shake twice and a sheet comes up. Pick what happened from five chips and add a note in your own
-words — optional, but it is the part that carries anything, and what you type becomes the title of
-the issue. The report brings the screen you were on, app and firmware versions, free space, heap,
-and the stack trace if the app died the last time you had it open. Reports queue on disk before
-anything is sent, so a report survives the crash that prompted it.
+Nothing else about reporting changed — same note field, same queue-to-disk-first behaviour, same
+gesture tuning.

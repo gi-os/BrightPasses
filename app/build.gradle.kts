@@ -32,7 +32,7 @@ android {
         minSdk = 29
         targetSdk = 35
         versionCode = 12
-        versionName = "1.10.0"
+        versionName = "1.11.0"
 
         buildConfigField("String", "REPORT_TOKEN", "\"$reportToken\"")
         buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")
