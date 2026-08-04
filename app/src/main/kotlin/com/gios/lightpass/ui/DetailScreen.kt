@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gios.lightpass.data.PassEntity
-import com.gios.lightpass.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import androidx.compose.ui.text.style.TextOverflow
 import com.google.zxing.BarcodeFormat
 import com.gios.lightpass.util.BarcodeRender

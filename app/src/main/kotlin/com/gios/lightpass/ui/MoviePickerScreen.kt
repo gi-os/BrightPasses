@@ -21,7 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.gios.lightpass.ai.MovieCandidate
-import com.gios.lightpass.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

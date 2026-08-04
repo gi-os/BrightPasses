@@ -18,7 +18,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import coil.compose.AsyncImage
-import com.gios.lightpass.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import java.io.File
 
 /** Pinch-zoom + pan viewer for the original photo, on black. */

@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gios.lightpass.data.PassEntity
-import com.gios.lightpass.hw.WheelScroll
+import com.gios.light.common.hw.WheelScroll
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)

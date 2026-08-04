@@ -17,10 +17,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.gios.lightpass.hw.LightKey
-import com.gios.lightpass.hw.LightKeys
-import com.gios.lightpass.hw.LocalWheelBus
-import com.gios.lightpass.hw.WheelBus
+import com.gios.light.common.hw.LightKey
+import com.gios.light.common.hw.LightKeys
+import com.gios.light.common.hw.LocalWheelBus
+import com.gios.light.common.hw.WheelBus
 import com.gios.lightpass.ui.*
 import com.gios.lightpass.ui.theme.LightPassTheme
 import com.journeyapps.barcodescanner.ScanContract
