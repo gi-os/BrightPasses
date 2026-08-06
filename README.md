@@ -1,13 +1,13 @@
-# LightPass
+# BrightPasses
 
-Movie ticket stubs on the Light Phone III. Photograph a stub, and LightPass reads the
+Movie ticket stubs on the Light Phone III. Photograph a stub, and BrightPasses reads the
 title, theater, date, time, seat and price off the paper with Claude Haiku, then keeps
 the ticket in a local collection sorted by showtime, moving it to an archive after the
 film ends. LightOS shows the tool as **Movie Tickets**. Package `com.gios.lightpass`.
 Current release: **v1.9.0**.
 
 **This repo is also the shared skeleton.** Every other Light Phone III app in this
-collection that needs a camera — LightNotebook, LightRSS's QR scanner, LightPods'
+collection that needs a camera — BrightNotebook, BrightNews's QR scanner, LightPods'
 sideload packaging — copies its `app/` module structure, its Compose/Material3 theme,
 its Akkurat-from-`SystemFonts` font loader, its keystore-and-CI signing setup, or its
 QR-key-entry flow from here. Treat changes to `ui/theme/`, the signing workflow, or the
@@ -17,8 +17,8 @@ hand-copied downstream, not pulled by any dependency mechanism.
 ## Quick start
 
 ```sh
-git clone https://github.com/gi-os/LightPass.git
-cd LightPass
+git clone https://github.com/gi-os/BrightPasses.git
+cd BrightPasses
 ./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
@@ -53,7 +53,7 @@ Anthropic key (below) to skip the typing; add a TMDb key to get posters.
 ## Usage
 
 - Capture or import → Claude Haiku returns title, theater, date, time, seat, price, a
-  booking code, a confidence score, and a bounding box. LightPass crops to that box and
+  booking code, a confidence score, and a bounding box. BrightPasses crops to that box and
   keeps the full photo behind a zoomable viewer.
 - **A date with no year on it is read as upcoming.** Stubs print "DEC 18" and leave the
   year off, so the model is told to return `MM-DD` in that case rather than guess, and
@@ -78,7 +78,7 @@ Anthropic key (below) to skip the typing; add a TMDb key to get posters.
   results, and pans the stub photo or the enlarged booking code once you've pinched in —
   the only way to read the small print at the bottom of a stub. It arrives as an ordinary key event
   (`WHEEL_CCW`/`WHEEL_CW`, claimed in `dispatchKeyEvent` ahead of the view hierarchy);
-  [LightControl](https://github.com/gi-os/LightControl) is the separate, optional app
+  [BrightControl](https://github.com/gi-os/BrightControl) is the separate, optional app
   that owns the wheel click and the camera button phone-wide.
 - Room stores the collection on-device; there is no account and no server.
 
@@ -103,8 +103,8 @@ should actually reach users as an update.
 
 ## Contributing
 
-Pull requests welcome, especially fixes shared with the downstream copies (LightNotebook,
-LightRSS, LightPods): if you fix something in `ui/theme/`, the QR key-entry flow, or the
+Pull requests welcome, especially fixes shared with the downstream copies (BrightNotebook,
+BrightNews, LightPods): if you fix something in `ui/theme/`, the QR key-entry flow, or the
 CI signing steps, consider whether the same fix applies to those repos too, since there
 is no shared package to pull it from automatically. `LightFont.kt`'s
 `akkuratFamilyOrDefault()` pattern (pull Akkurat out of `android.graphics.fonts.SystemFonts`
@@ -166,16 +166,16 @@ scanner would compile, install, and silently never work.
 | beta2  | `c125a6b` | Bounding-box ticket crop + zoomable original, NDPass-style detail page, optional TMDb, auto-archive, all-black UI |
 | Beta   | `8962712` | Switch to a standalone Android app: camera + album import, QR key scan, NDPass parser, full-color viewer |
 
-Since v1.6.2, LightPass also exposes its ticket shelf to other tools: `PassProvider` at
+Since v1.6.2, BrightPasses also exposes its ticket shelf to other tools: `PassProvider` at
 authority `com.gios.lightpass.passes`, exported but answering only an allowlisted set of
 calling packages (title/theater/seat/day/start/end only — never the photo or barcode).
-[LightNotebook](https://github.com/gi-os/LightNotebook) is the current consumer, folding
+[BrightNotebook](https://github.com/gi-os/BrightNotebook) is the current consumer, folding
 a matching ticket into its calendar entries and opening `lightpass://pass/<id>` on tap.
 
 ## Origin and credits
 
 - [gi-os/NDPass](https://github.com/gi-os/NDPass) is the iOS ticket collector this app
-  grew out of; LightPass reuses its ticket schema and detail-page layout.
+  grew out of; BrightPasses reuses its ticket schema and detail-page layout.
 - The grayscale-off trick on the detail page is `util/Grayscale.kt`, a small
   implementation against `Settings.Secure` of the idea seen in
   [vandamd/zero](https://github.com/vandamd/zero) (MIT) and shipped natively in
