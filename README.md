@@ -6,6 +6,17 @@ the ticket in a local collection sorted by showtime, moving it to an archive aft
 film ends. LightOS shows the tool as **Movie Tickets**. Package `com.gios.lightpass`.
 Current release: **v1.9.0**.
 
+## Install via BrightMarket
+
+<p align="center">
+  <img src="https://gi-os.github.io/brightmarket-index/assets/brightmarket-qr.png" alt="Scan to open BrightMarket" width="180" />
+</p>
+
+Scan the code above, or visit
+**[gi-os.github.io/brightmarket-index/browse.html](https://gi-os.github.io/brightmarket-index/browse.html)**, to install
+and keep this app updated through **BrightMarket** — no Play Store, no PC
+required.
+
 **This repo is also the shared skeleton.** Every other Light Phone III app in this
 collection that needs a camera — BrightNotebook, BrightNews's QR scanner, LightPods'
 sideload packaging — copies its `app/` module structure, its Compose/Material3 theme,
