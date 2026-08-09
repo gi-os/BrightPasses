@@ -26,6 +26,8 @@ data class ParsedPass(
     val boxW: Double?,
     val boxH: Double?,
     val notATicket: Boolean = false,
+    /** "MOVIE", "SPORTS" or "CONCERT" — the model's read of what the ticket is for. */
+    val kind: String = com.gios.lightpass.data.EventType.MOVIE,
 )
 
 object PassParser {
@@ -47,11 +49,12 @@ object PassParser {
      * [com.gios.lightpass.util.TicketDate] decides it afterwards from a real calendar.
      */
     private fun prompt(today: LocalDate) = """
-        Analyze this image of a movie ticket and extract the following.
-        Return ONLY valid JSON, no markdown, no backticks, no explanation.
+        Analyze this image of an event ticket (movie, sports game, or concert) and extract
+        the following. Return ONLY valid JSON, no markdown, no backticks, no explanation.
         {
-          "movieTitle": "exact movie title on ticket",
-          "theater": "theater/cinema name",
+          "kind": "movie" | "sports" | "concert",
+          "movieTitle": "exact event title on ticket (film title, matchup like 'Knicks vs Celtics', or artist/tour name)",
+          "theater": "theater/cinema, stadium/arena, or venue name",
           "date": "YYYY-MM-DD if a year is printed on the ticket, otherwise MM-DD",
           "time": "h:mm AM/PM",
           "seat": "seat/row info or null",
@@ -73,10 +76,12 @@ object PassParser {
         under or beside the barcode, copied character for character. Never invent one and
         never substitute a seat number or an order total — return null if none is legible.
         Rules: time is 12-hour with AM/PM.
-        Read AM/PM carefully from the ticket. Movie showings are almost always
-        matinee or evening (11:00 AM - 11:59 PM); a 1-6 AM showtime is almost
+        Read AM/PM carefully from the ticket. Showings and events are almost always
+        matinee or evening (11:00 AM - 11:59 PM); a 1-6 AM start time is almost
         certainly a misread PM. confidence 0-1 over all fields.
-        If NOT a movie ticket, return {"error":"not_a_ticket","confidence":0}.
+        "kind" is your best read of what the ticket admits you to: "movie" for a film
+        screening, "sports" for a game or match, "concert" for live music or a show.
+        If the image is NOT a ticket at all, return {"error":"not_a_ticket","confidence":0}.
     """.trimIndent()
 
     fun parse(imageFile: File, apiKey: String): ParsedPass {
@@ -140,6 +145,11 @@ object PassParser {
                 code = j.optString("code").ifBlank { null },
                 confidence = j.optDouble("confidence", 0.0),
                 boxX = nx, boxY = ny, boxW = nw, boxH = nh,
+                kind = when (j.optString("kind").lowercase()) {
+                    "sports" -> com.gios.lightpass.data.EventType.SPORTS
+                    "concert" -> com.gios.lightpass.data.EventType.CONCERT
+                    else -> com.gios.lightpass.data.EventType.MOVIE
+                },
             )
         }
     }

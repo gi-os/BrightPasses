@@ -44,7 +44,13 @@ class PassProvider : ContentProvider() {
             PassDatabase.get(context).passDao().allWithDatesBlocking()
         }.getOrDefault(emptyList())
 
-        passes.forEachIndexed { index, pass ->
+        // One row per event, not per ticket — three seats to one screening is one thing on a
+        // calendar. The oldest ticket speaks for the group and the seats are joined.
+        val groups = passes.groupBy { it.groupId ?: it.id }.values
+            .map { it.sortedBy { p -> p.addedAt } }
+
+        groups.forEachIndexed { index, group ->
+            val pass = group.first()
             val epochDay = runCatching { LocalDate.parse(pass.date) }.getOrNull()?.toEpochDay()
                 ?: return@forEachIndexed
             val start = PassTimes.start(pass)
@@ -55,13 +61,15 @@ class PassProvider : ContentProvider() {
             val endMinutes = pass.runtimeMin?.let { runtime ->
                 startMinutes?.plus(runtime)?.takeIf { it < MINUTES_IN_DAY }
             }
+            val seats = group.mapNotNull { it.seat?.trim()?.takeIf(String::isNotEmpty) }
+                .distinct().joinToString(", ").ifEmpty { null }
             cursor.addRow(
                 arrayOf<Any?>(
                     index.toLong(),
                     pass.id,
                     pass.movieTitle,
                     pass.theater,
-                    pass.seat,
+                    seats,
                     epochDay,
                     startMinutes?.toLong(),
                     endMinutes?.toLong(),

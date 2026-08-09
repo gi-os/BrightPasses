@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.gios.lightpass.data.EventType
 import com.gios.lightpass.data.PassEntity
 import com.gios.lightpass.hw.WheelScroll
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,12 +45,23 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack: () -> Unit) {
+fun DetailScreen(
+    vm: PassViewModel,
+    id: String,
+    onPickMovie: (String) -> Unit,
+    onAddTicket: (String) -> Unit,
+    onBack: () -> Unit,
+) {
     val context = LocalContext.current
-    val pass by vm.observePass(id).collectAsStateWithLifecycle(initialValue = null)
+    // Every ticket to this showing, not just the one that was tapped. The page shows one at
+    // a time; the pager at the bottom steps through the rest.
+    val tickets by vm.observeTickets(id).collectAsStateWithLifecycle(initialValue = emptyList())
+    var selectedId by remember { mutableStateOf(id) }
+    val pass = tickets.firstOrNull { it.id == selectedId } ?: tickets.firstOrNull()
     var editing by remember { mutableStateOf(false) }
     var showTicket by remember { mutableStateOf(false) }
     var showCode by remember { mutableStateOf(false) }
+    var showType by remember { mutableStateOf(false) }
 
     // Edit fields, lifted here so the top-bar SAVE commits them.
     var title by remember { mutableStateOf("") }
@@ -104,7 +116,13 @@ fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack:
                             Text(if (editing) "SAVE" else "EDIT", color = Color.White,
                                 style = MaterialTheme.typography.labelLarge)
                         }
-                        IconButton(onClick = { vm.delete(p); onBack() }) { Icon(Icons.Default.Delete, "Delete") }
+                        IconButton(onClick = {
+                            // Deleting one ticket of several leaves you on the event, looking
+                            // at a sibling; deleting the last one leaves the page too.
+                            val remaining = tickets.filterNot { it.id == p.id }
+                            vm.delete(p)
+                            if (remaining.isEmpty()) onBack() else selectedId = remaining.first().id
+                        }) { Icon(Icons.Default.Delete, "Delete") }
                     }
                 },
             )
@@ -121,9 +139,25 @@ fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack:
                 code, { code = it }, ::doSave,
                 wheelActive = pageHasWheel)
         } else {
-            DetailBody(Modifier.padding(pad), p, onPickMovie,
+            DetailBody(Modifier.padding(pad), p,
+                ticketIndex = tickets.indexOfFirst { it.id == p.id }.coerceAtLeast(0),
+                ticketCount = tickets.size,
+                onPickMovie = { onPickMovie(p.id) },
+                onPickType = { showType = true },
+                onAddTicket = { onAddTicket(p.id) },
+                onSelectTicket = { ix -> tickets.getOrNull(ix)?.let { selectedId = it.id } },
                 onEnlargeCode = { showCode = true }, onShowPhoto = { showTicket = true },
                 wheelActive = pageHasWheel)
+        }
+    }
+
+    if (showType) {
+        pass?.let { p ->
+            EventTypeDialog(
+                current = p.eventType,
+                onPick = { vm.setEventType(p.id, it); showType = false },
+                onDismiss = { showType = false },
+            )
         }
     }
 
@@ -169,11 +203,17 @@ fun DetailScreen(vm: PassViewModel, id: String, onPickMovie: () -> Unit, onBack:
 private fun DetailBody(
     modifier: Modifier,
     p: PassEntity,
+    ticketIndex: Int,
+    ticketCount: Int,
     onPickMovie: () -> Unit,
+    onPickType: () -> Unit,
+    onAddTicket: () -> Unit,
+    onSelectTicket: (Int) -> Unit,
     onEnlargeCode: () -> Unit,
     onShowPhoto: () -> Unit,
     wheelActive: Boolean = true,
 ) {
+    val isMovie = p.eventType == EventType.MOVIE
     val scroll = rememberScrollState()
     WheelScroll(scroll, active = wheelActive)
     Column(
@@ -182,34 +222,101 @@ private fun DetailBody(
     ) {
         Box(Modifier.fillMaxWidth().height(360.dp).background(Color.Black), Alignment.Center) {
             AsyncImage(
-                model = p.posterUrl ?: File(p.croppedPath ?: p.imagePath),
+                // A poster is a movie thing. A game marked as a game shows its own ticket,
+                // even if a stray TMDb match once gave it artwork.
+                model = (if (isMovie) p.posterUrl else null) ?: File(p.croppedPath ?: p.imagePath),
                 contentDescription = null, contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
         }
         Spacer(Modifier.height(16.dp))
         Text(p.movieTitle, style = MaterialTheme.typography.titleLarge, color = Color.White)
-        p.year?.let { Text(it, color = Color(0xFFB0B0B0)) }
-        TextButton(onClick = onPickMovie) {
-            Text(if (p.posterUrl == null) "PICK MOVIE" else "CHANGE MOVIE",
-                color = Color(0xFF7FB0FF), style = MaterialTheme.typography.labelSmall)
+        if (isMovie) p.year?.let { Text(it, color = Color(0xFFB0B0B0)) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isMovie) {
+                TextButton(onClick = onPickMovie) {
+                    Text(if (p.posterUrl == null) "PICK MOVIE" else "CHANGE MOVIE",
+                        color = Color(0xFF7FB0FF), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            // "Not a movie" lives here: tap the type to reclassify, on any pass, at any time.
+            TextButton(onClick = onPickType) {
+                Text(EventType.label(p.eventType).uppercase(),
+                    color = Color(0xFF7FB0FF), style = MaterialTheme.typography.labelSmall)
+            }
         }
         Spacer(Modifier.height(12.dp))
         InfoRow("BEGINS", PassTimes.beginsLabel(p) ?: p.time ?: "—", "ENDS", PassTimes.endsLabel(p) ?: "—")
         Spacer(Modifier.height(12.dp))
-        InfoRow("THEATER", p.theater ?: "—", "SEAT", p.seat ?: "—")
+        InfoRow(EventType.venueLabel(p.eventType), p.theater ?: "—", "SEAT", p.seat ?: "—")
         Spacer(Modifier.height(12.dp))
         InfoRow("DATE", PassTimes.humanDate(p.date) ?: "—", "PRICE", p.price ?: "—")
-        p.overview?.let {
+        if (isMovie) p.overview?.let {
             Spacer(Modifier.height(20.dp))
             Text(it, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFCFCFCF),
                 modifier = Modifier.padding(horizontal = 20.dp))
         }
         // Bottom of the ticket, where every pass app puts the code and where a thumb already is.
         Spacer(Modifier.height(28.dp))
+        if (ticketCount > 1) {
+            TicketPager(ticketIndex, ticketCount, p.seat, onSelectTicket)
+            Spacer(Modifier.height(8.dp))
+        }
         BookingCodeSection(p, onEnlargeCode, onShowPhoto)
+        TextButton(onClick = onAddTicket) {
+            Text("ADD TICKET TO THIS EVENT", color = Color(0xFF7FB0FF),
+                style = MaterialTheme.typography.labelSmall)
+        }
         Spacer(Modifier.height(28.dp))
     }
+}
+
+/**
+ * "TICKET 2 OF 3" with an arrow either side. Everyone at the door shows their own code, so
+ * the whole page — seat, code, photo — follows the arrows, not just the barcode.
+ */
+@Composable
+private fun TicketPager(index: Int, count: Int, seat: String?, onSelect: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = { onSelect((index - 1 + count) % count) }) {
+            Text("PREV", color = Color.White, style = MaterialTheme.typography.labelSmall)
+        }
+        Text(
+            "TICKET ${index + 1} OF $count" + (seat?.let { " · SEAT $it" } ?: ""),
+            style = MaterialTheme.typography.labelSmall, color = Color(0xFFB0B0B0),
+        )
+        TextButton(onClick = { onSelect((index + 1) % count) }) {
+            Text("NEXT", color = Color.White, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+/** Movie, sports or concert — the retroactive "not a movie" switch. Applies to the group. */
+@Composable
+private fun EventTypeDialog(current: String, onPick: (String) -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.Black,
+        title = { Text("What is this ticket for?", color = Color.White) },
+        text = {
+            Column {
+                EventType.ALL.forEach { type ->
+                    Text(
+                        EventType.label(type).uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (type == current) Color.White else Color(0xFF8A8A8A),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(type) }
+                            .padding(vertical = 14.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("CANCEL", color = Color.White) }
+        },
+    )
 }
 
 /**

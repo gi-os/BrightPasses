@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gios.lightpass.ai.MovieCandidate
+import com.gios.lightpass.data.EventType
 import com.gios.lightpass.data.PassEntity
 import com.gios.lightpass.data.PassRepository
 import com.gios.lightpass.util.PassTimes
@@ -14,7 +15,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-data class PassLists(val active: List<PassEntity>, val archived: List<PassEntity>)
+/**
+ * One entry on the shelf: an event and every ticket to it. A lone ticket is a group of one,
+ * so the list code never has two cases.
+ */
+data class PassGroup(val tickets: List<PassEntity>) {
+    /** The oldest ticket speaks for the group — it is the one whose id names the group. */
+    val primary: PassEntity get() = tickets.first()
+    val count: Int get() = tickets.size
+}
+
+data class PassLists(val active: List<PassGroup>, val archived: List<PassGroup>)
 
 class PassViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = PassRepository(app)
@@ -30,11 +41,15 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
         repo.observeAll()
             .map { all ->
                 val now = System.currentTimeMillis()
+                // Tickets to the same showing collapse to one shelf entry; whether that entry
+                // is upcoming or archived is the primary's call, since siblings share a clock.
+                val groups = all.groupBy { it.groupId ?: it.id }.values
+                    .map { PassGroup(it.sortedBy { t -> t.addedAt }) }
                 PassLists(
-                    active = all.filterNot { PassTimes.isArchived(it, now) }
-                        .sortedWith(compareBy(nullsLast()) { PassTimes.startMillis(it) }),
-                    archived = all.filter { PassTimes.isArchived(it, now) }
-                        .sortedByDescending { PassTimes.startMillis(it) ?: it.addedAt },
+                    active = groups.filterNot { PassTimes.isArchived(it.primary, now) }
+                        .sortedWith(compareBy(nullsLast()) { PassTimes.startMillis(it.primary) }),
+                    archived = groups.filter { PassTimes.isArchived(it.primary, now) }
+                        .sortedByDescending { PassTimes.startMillis(it.primary) ?: it.primary.addedAt },
                 )
             }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PassLists(emptyList(), emptyList()))
@@ -53,6 +68,7 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
     fun clearJustAdded() { _justAdded.value = null }
 
     fun observePass(id: String) = repo.observePass(id)
+    fun observeTickets(id: String) = repo.observeTickets(id)
     suspend fun getPass(id: String): PassEntity? = repo.getById(id)
 
     fun apiKey() = repo.getApiKey()
@@ -62,10 +78,12 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
     fun hasTmdbKey() = repo.getTmdbKey().isNotBlank()
     fun newCaptureFile(): File = repo.newCaptureFile()
 
-    fun addFromFile(file: File) = ingest { repo.addFromFile(file) }
-    fun addFromUri(uri: Uri) = ingest { repo.addFromUri(uri) }
+    fun addFromFile(file: File, attachTo: String? = null) = ingest { repo.addFromFile(file, attachTo) }
+    fun addFromUri(uri: Uri, attachTo: String? = null) = ingest { repo.addFromUri(uri, attachTo) }
     fun save(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.update(pass) }
     fun delete(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.delete(pass) }
+    fun setEventType(passId: String, type: String) =
+        viewModelScope.launch(Dispatchers.IO) { repo.setEventType(passId, type) }
 
     suspend fun searchMovies(title: String): List<MovieCandidate> =
         withContext(Dispatchers.IO) { repo.searchMovies(title) }
@@ -77,7 +95,14 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             val id = runCatching { block() }.getOrNull()
             _busy.value = false
-            if (id != null) _justAdded.value = id
+            if (id != null) {
+                // The picker exists to identify a film. A ticket that joined a group already
+                // matched, and a sports or concert ticket has nothing on TMDb to match.
+                val p = repo.getById(id)
+                _justAdded.value =
+                    if (p != null && p.eventType == EventType.MOVIE && p.posterUrl == null) id
+                    else null
+            }
         }
     }
 }

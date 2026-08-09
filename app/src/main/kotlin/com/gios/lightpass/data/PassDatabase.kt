@@ -28,7 +28,32 @@ data class PassEntity(
     val runtimeMin: Int? = null,       // TMDb runtime -> end time + auto-archive
     val year: String? = null,
     val addedAt: Long = System.currentTimeMillis(),
+    /** MOVIE, SPORTS or CONCERT — see [EventType]. Changes labels, hides the TMDb plumbing. */
+    val eventType: String = EventType.MOVIE,
+    /**
+     * Tickets to the same showing share a groupId; a lone ticket has null. The group's id is
+     * the id of the first ticket that gained a sibling, so it never has to be invented twice.
+     */
+    val groupId: String? = null,
 )
+
+/** The three kinds of thing a ticket can be for. Strings, not an enum — Room stores them raw. */
+object EventType {
+    const val MOVIE = "MOVIE"
+    const val SPORTS = "SPORTS"
+    const val CONCERT = "CONCERT"
+
+    val ALL = listOf(MOVIE, SPORTS, CONCERT)
+
+    fun label(type: String): String = when (type) {
+        SPORTS -> "Sports"
+        CONCERT -> "Concert"
+        else -> "Movie"
+    }
+
+    /** What the "theater" field should be called for this kind of event. */
+    fun venueLabel(type: String): String = if (type == MOVIE) "THEATER" else "VENUE"
+}
 
 @Dao
 interface PassDao {
@@ -40,6 +65,16 @@ interface PassDao {
 
     @Query("SELECT * FROM passes WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): PassEntity?
+
+    /** Every ticket in a group, oldest first — the order they were photographed in. */
+    @Query("SELECT * FROM passes WHERE groupId = :groupId ORDER BY addedAt ASC")
+    fun observeGroup(groupId: String): Flow<List<PassEntity>>
+
+    @Query("SELECT * FROM passes WHERE groupId = :groupId ORDER BY addedAt ASC")
+    suspend fun getGroup(groupId: String): List<PassEntity>
+
+    @Query("SELECT * FROM passes")
+    suspend fun getAll(): List<PassEntity>
 
     /**
      * Blocking on purpose: [com.gios.lightpass.data.PassProvider] answers on a binder
@@ -62,7 +97,7 @@ interface PassDao {
     suspend fun delete(id: String)
 }
 
-@Database(entities = [PassEntity::class], version = 3, exportSchema = false)
+@Database(entities = [PassEntity::class], version = 4, exportSchema = false)
 abstract class PassDatabase : RoomDatabase() {
     abstract fun passDao(): PassDao
 
@@ -84,12 +119,23 @@ abstract class PassDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Event kind + ticket grouping. Same shape as 2→3: additive, defaulted, can't fail.
+         * Existing rows become MOVIE tickets in no group — which is exactly what they were.
+         */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE passes ADD COLUMN eventType TEXT NOT NULL DEFAULT 'MOVIE'")
+                db.execSQL("ALTER TABLE passes ADD COLUMN groupId TEXT")
+            }
+        }
+
         @Volatile private var INSTANCE: PassDatabase? = null
         fun get(context: Context): PassDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext, PassDatabase::class.java, "lightpass.db"
-                ).addMigrations(MIGRATION_2_3).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
             }
     }
 }

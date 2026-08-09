@@ -90,9 +90,18 @@ class MainActivity : ComponentActivity() {
                 // Which key a scanned QR should set when the payload has no prefix.
                 var scanTarget by remember { mutableStateOf("anthropic") }
 
+                // Non-null while the add flow was entered through ADD TICKET on an event:
+                // the id of the pass the new photo should attach to. The + button clears it.
+                var attachTarget by remember { mutableStateOf<String?>(null) }
+                fun doneAdding() {
+                    // An attached ticket returns you to the event it joined; a fresh one, home.
+                    if (attachTarget != null) nav.popBackStack("viewer/{id}", false)
+                    else nav.popBackStack("home", false)
+                }
+
                 val pickImage = rememberLauncherForActivityResult(
                     ActivityResultContracts.PickVisualMedia()
-                ) { uri -> if (uri != null) { vm.addFromUri(uri); nav.popBackStack("home", false) } }
+                ) { uri -> if (uri != null) { vm.addFromUri(uri, attachTarget); doneAdding() } }
 
                 val scanQr = rememberLauncherForActivityResult(ScanContract()) { result ->
                     val raw = result.contents?.trim() ?: return@rememberLauncherForActivityResult
@@ -131,7 +140,7 @@ class MainActivity : ComponentActivity() {
                         composable("home") {
                             HomeScreen(vm,
                                 onOpen = { id -> nav.navigate("viewer/$id") },
-                                onAdd = { nav.navigate("add") },
+                                onAdd = { attachTarget = null; nav.navigate("add") },
                                 onSettings = { nav.navigate("settings") })
                         }
                         composable("add") {
@@ -144,7 +153,7 @@ class MainActivity : ComponentActivity() {
                         composable("camera") {
                             CameraScreen(
                                 newFile = { vm.newCaptureFile() },
-                                onCaptured = { file -> vm.addFromFile(file); nav.popBackStack("home", false) })
+                                onCaptured = { file -> vm.addFromFile(file, attachTarget); doneAdding() })
                         }
                         composable(
                             "viewer/{id}",
@@ -152,7 +161,10 @@ class MainActivity : ComponentActivity() {
                         ) { entry ->
                             val id = entry.arguments!!.getString("id")!!
                             DetailScreen(vm, id,
-                                onPickMovie = { nav.navigate("picker/$id") },
+                                // The pager may be sitting on a sibling, so both callbacks
+                                // carry the ticket actually on screen, not the route's id.
+                                onPickMovie = { pid -> nav.navigate("picker/$pid") },
+                                onAddTicket = { pid -> attachTarget = pid; nav.navigate("add") },
                                 onBack = { nav.popBackStack() })
                         }
                         composable(

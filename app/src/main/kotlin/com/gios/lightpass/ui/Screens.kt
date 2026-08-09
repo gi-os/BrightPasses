@@ -42,7 +42,8 @@ fun HomeScreen(vm: PassViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit, o
         topBar = {
             TopAppBar(
                 colors = barColors(),
-                title = { Text("Movie Tickets") },
+                // Was "Movie Tickets", and the shelf now also holds games and shows.
+                title = { Text("Tickets") },
                 navigationIcon = { IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") } },
                 actions = { IconButton(onClick = onAdd) { Icon(Icons.Default.Add, "Add") } },
             )
@@ -70,7 +71,9 @@ fun HomeScreen(vm: PassViewModel, onOpen: (String) -> Unit, onAdd: () -> Unit, o
                 val listState = rememberLazyListState()
                 WheelScroll(listState)
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    items(shown, key = { it.id }) { PassRow(it, dim = tab == 1) { onOpen(it.id) } }
+                    items(shown, key = { it.primary.id }) {
+                        PassRow(it, dim = tab == 1) { onOpen(it.primary.id) }
+                    }
                 }
             }
         }
@@ -98,7 +101,8 @@ private fun LightTabs(selected: Int, labels: List<String>, counts: List<Int>, on
 }
 
 @Composable
-private fun PassRow(pass: PassEntity, dim: Boolean = false, onClick: () -> Unit) {
+private fun PassRow(group: PassGroup, dim: Boolean = false, onClick: () -> Unit) {
+    val pass = group.primary
     val fg = if (dim) Color(0xFF888888) else Color.White
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -114,7 +118,12 @@ private fun PassRow(pass: PassEntity, dim: Boolean = false, onClick: () -> Unit)
         Column(Modifier.weight(1f)) {
             Text(pass.movieTitle, style = MaterialTheme.typography.bodyLarge, color = fg,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = listOfNotNull(pass.theater, com.gios.lightpass.util.PassTimes.humanDate(pass.date), pass.time, pass.seat?.let { "Seat $it" }).joinToString(" · ")
+            // One event, however many tickets: seats collapse into a count once there are
+            // siblings, because "Seat B12" is a lie about an entry that also holds B13.
+            val seatOrCount =
+                if (group.count > 1) "${group.count} tickets"
+                else pass.seat?.let { "Seat $it" }
+            val sub = listOfNotNull(pass.theater, com.gios.lightpass.util.PassTimes.humanDate(pass.date), pass.time, seatOrCount).joinToString(" · ")
             if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodyMedium,
                 color = Color(0xFF9A9A9A), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
