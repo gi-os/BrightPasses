@@ -236,9 +236,11 @@ private fun DetailBody(
     ) {
         Box(Modifier.fillMaxWidth().height(360.dp).background(Color.Black), Alignment.Center) {
             AsyncImage(
-                // A poster is a movie thing. A game marked as a game shows its own ticket,
-                // even if a stray TMDb match once gave it artwork.
-                model = (if (isMovie) p.posterUrl else null) ?: File(p.croppedPath ?: p.imagePath),
+                // Generated art (versus card / music note) first; a TMDb poster only for a
+                // movie, so a stray match can't dress a game; the ticket photo as the floor.
+                model = p.artPath?.let(::File)
+                    ?: (if (isMovie) p.posterUrl else null)
+                    ?: File(p.croppedPath ?: p.imagePath),
                 contentDescription = null, contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )

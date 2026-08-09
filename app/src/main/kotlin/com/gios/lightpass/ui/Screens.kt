@@ -109,7 +109,9 @@ private fun PassRow(group: PassGroup, dim: Boolean = false, onClick: () -> Unit)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
-            model = pass.posterUrl ?: File(pass.croppedPath ?: pass.imagePath),
+            // Generated art first (the versus card, the music note), then the poster, then
+            // the ticket photo — most specific thing available wins.
+            model = pass.artPath?.let(::File) ?: pass.posterUrl ?: File(pass.croppedPath ?: pass.imagePath),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(52.dp, 72.dp).background(Color(0xFF1A1A1A)),

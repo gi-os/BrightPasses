@@ -35,6 +35,12 @@ data class PassEntity(
      * the id of the first ticket that gained a sibling, so it never has to be invented twice.
      */
     val groupId: String? = null,
+    /**
+     * Generated poster for non-movie passes — the two-crest versus card for a game, the
+     * music note for a concert. Each row owns its own file, so deleting one ticket can
+     * never blank a sibling's art. Null means show the photo, same as ever.
+     */
+    val artPath: String? = null,
 )
 
 /** The three kinds of thing a ticket can be for. Strings, not an enum — Room stores them raw. */
@@ -97,7 +103,7 @@ interface PassDao {
     suspend fun delete(id: String)
 }
 
-@Database(entities = [PassEntity::class], version = 4, exportSchema = false)
+@Database(entities = [PassEntity::class], version = 5, exportSchema = false)
 abstract class PassDatabase : RoomDatabase() {
     abstract fun passDao(): PassDao
 
@@ -130,12 +136,19 @@ abstract class PassDatabase : RoomDatabase() {
             }
         }
 
+        /** Generated art. Additive and nullable, like every migration before it. */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE passes ADD COLUMN artPath TEXT")
+            }
+        }
+
         @Volatile private var INSTANCE: PassDatabase? = null
         fun get(context: Context): PassDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext, PassDatabase::class.java, "lightpass.db"
-                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { INSTANCE = it }
             }
     }
 }

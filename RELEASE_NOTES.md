@@ -1,3 +1,28 @@
+## BrightPasses v1.13 — A game looks like a game
+
+**Sports passes get a two-crest versus card; concerts get a music note.**
+
+### The versus card
+
+A sports pass now draws its own poster: the matchup is parsed out of the title ("Knicks vs
+Celtics", "Yankees @ Red Sox", "NYCFC at Inter Miami"), each side is resolved through ESPN's
+search — the same keyless API BrightSports runs on — and the two crests are composited across
+a diagonal, home upper-left, away lower-right, cut over each other like a broadcast versus
+card. The dark logo variants are used on purpose: the defaults are drawn for white pages and
+can vanish on this app's black. Everything is best-effort — a title that isn't a matchup, or
+a team ESPN can't find, just means the pass keeps showing its photo.
+
+Concerts get a drawn music note for now.
+
+The card follows the pass everywhere the poster would: the shelf row, the event page.
+Siblings copy the group's card instead of asking ESPN again, each into its own file so
+deleting one ticket can't blank another's art. Existing games and concerts on the shelf get
+their posters backfilled on launch, a few per opening, same rhythm as the barcode backfill.
+Fixing a mangled title in EDIT redraws the card, and switching a pass's kind swaps its art
+with it — a game marked back to movie drops the crests.
+
+---
+
 ## BrightPasses v1.12 — The lag, and merging by hand
 
 **v1.11's event page was doing its database work over and over. Fixed, plus retroactive merge.**

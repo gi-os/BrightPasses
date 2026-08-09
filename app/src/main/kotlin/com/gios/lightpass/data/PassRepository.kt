@@ -1,12 +1,14 @@
 package com.gios.lightpass.data
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import com.gios.lightpass.ai.MovieCandidate
 import com.gios.lightpass.ai.PassParser
 import com.gios.lightpass.ai.TmdbClient
 import com.gios.lightpass.util.AutoCrop
 import com.gios.lightpass.util.CodeReader
+import com.gios.lightpass.util.EventArt
 import com.gios.lightpass.util.ImageUtils
 import com.gios.lightpass.util.ShowTime
 import com.gios.lightpass.util.TextUtils
@@ -59,7 +61,15 @@ class PassRepository(private val context: Context) {
     suspend fun delete(pass: PassEntity) {
         runCatching { File(pass.imagePath).delete() }
         pass.croppedPath?.let { runCatching { File(it).delete() } }
+        // Safe to delete: every row owns its own art file, never a sibling's.
+        pass.artPath?.let { runCatching { File(it).delete() } }
         dao.delete(pass.id)
+    }
+
+    /** Save an edit, then redraw generated art — a corrected matchup title means new crests. */
+    suspend fun updateFromEdit(pass: PassEntity) {
+        dao.update(pass)
+        if (pass.eventType != EventType.MOVIE) runCatching { refreshArt(pass.id) }
     }
 
     fun getApiKey(): String = prefs.getString("api_key", "").orEmpty()
@@ -101,7 +111,48 @@ class PassRepository(private val context: Context) {
     suspend fun setEventType(passId: String, type: String) {
         val pass = dao.getById(passId) ?: return
         for (member in groupOf(pass)) dao.update(member.copy(eventType = type))
+        // Regenerate after the type settles: SPORTS grows a versus card, CONCERT the note,
+        // MOVIE drops generated art entirely. Per member, since each owns its file.
+        for (member in groupOf(pass)) runCatching { refreshArt(member.id) }
     }
+
+    /**
+     * (Re)draw the generated poster for one pass. No art on failure, and no art simply means
+     * the pass shows its photo — so every path out of here is safe to reach.
+     */
+    private suspend fun refreshArt(passId: String) {
+        val pass = dao.getById(passId) ?: return
+        val bmp: Bitmap? = when (pass.eventType) {
+            EventType.SPORTS -> sportsCard(pass.movieTitle)
+            EventType.CONCERT -> EventArt.musicCard()
+            else -> null
+        }
+        if (bmp == null) {
+            if (pass.artPath != null) {
+                runCatching { File(pass.artPath).delete() }
+                dao.getById(passId)?.let { dao.update(it.copy(artPath = null)) }
+            }
+            return
+        }
+        val f = EventArt.savePng(bmp, File(passDir, "${pass.id}_art.png"))
+        dao.getById(passId)?.let { dao.update(it.copy(artPath = f.absolutePath)) }
+    }
+
+    /** Two crests over a diagonal, or null if the title isn't a matchup or ESPN draws a blank. */
+    private fun sportsCard(title: String): Bitmap? {
+        val (home, away) = EventArt.splitMatchup(title) ?: return null
+        val a = EventArt.teamLogoUrl(home)?.let(EventArt::downloadLogo) ?: return null
+        val b = EventArt.teamLogoUrl(away)?.let(EventArt::downloadLogo) ?: return null
+        return EventArt.versusCard(a, b)
+    }
+
+    /** A sibling's copy of the anchor's art — its own file, so deletes stay independent. */
+    private fun copiedArt(anchor: PassEntity?, newId: String): String? =
+        anchor?.artPath?.let { src ->
+            runCatching {
+                File(src).copyTo(File(passDir, "${newId}_art.png"), overwrite = true).absolutePath
+            }.getOrNull()
+        }
 
     /**
      * Merge two passes that were added separately into one event — the retroactive version
@@ -114,12 +165,14 @@ class PassRepository(private val context: Context) {
         val other = dao.getById(otherId) ?: return
         if (other.groupId == anchor.groupId) return
         for (member in groupOf(other)) {
+            member.artPath?.let { runCatching { File(it).delete() } }
             dao.update(member.copy(
                 groupId = anchor.groupId,
                 eventType = anchor.eventType,
                 // The event was matched once; its tickets should not disagree about it.
                 posterUrl = anchor.posterUrl, overview = anchor.overview,
                 runtimeMin = anchor.runtimeMin, year = anchor.year,
+                artPath = copiedArt(anchor, member.id),
             ))
         }
     }
@@ -216,8 +269,14 @@ class PassRepository(private val context: Context) {
                 runtimeMin = anchor?.runtimeMin, year = anchor?.year,
                 eventType = anchor?.eventType ?: meta?.kind ?: EventType.MOVIE,
                 groupId = anchor?.groupId,
+                // A sibling copies the group's card instead of asking ESPN again.
+                artPath = copiedArt(anchor, id),
             )
         )
+
+        // Generated poster for a game or concert that didn't inherit one. Before the barcode
+        // scan below, so the shelf shows the crests while the slow decode still runs.
+        if (dao.getById(id)?.artPath == null) runCatching { refreshArt(id) }
         upright.recycle()
 
         // Read the ticket's own code off the photograph now, while the ticket is the thing on
@@ -243,6 +302,19 @@ class PassRepository(private val context: Context) {
      * alternative is a third column whose only job is to remember "asked, found nothing", and a few
      * seconds of background work on an old pass is the cheaper of the two mistakes.
      */
+    /**
+     * Draw posters for non-movie passes that predate generated art (or whose generation
+     * failed). A sports title that isn't a matchup fails at the regex — no network — so
+     * retrying those every launch costs nothing.
+     */
+    suspend fun backfillArt() {
+        val pending = runCatching { dao.getAll() }.getOrNull() ?: return
+        for (pass in pending.filter { it.eventType != EventType.MOVIE && it.artPath == null }
+            .take(MAX_BACKFILL)) {
+            runCatching { refreshArt(pass.id) }
+        }
+    }
+
     suspend fun backfillScannedCodes() {
         val pending = runCatching { dao.neverScanned() }.getOrNull() ?: return
         for (pass in pending.take(MAX_BACKFILL)) {

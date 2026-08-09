@@ -35,6 +35,8 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
         // photograph. Catch a few up in the background on each launch — nothing waits on it, and a
         // ticket whose code arrives while you're looking at the shelf is the point.
         viewModelScope.launch(Dispatchers.IO) { runCatching { repo.backfillScannedCodes() } }
+        // And posters for games/concerts added before generated art existed.
+        viewModelScope.launch(Dispatchers.IO) { runCatching { repo.backfillArt() } }
     }
 
     val lists: StateFlow<PassLists> =
@@ -80,7 +82,7 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addFromFile(file: File, attachTo: String? = null) = ingest { repo.addFromFile(file, attachTo) }
     fun addFromUri(uri: Uri, attachTo: String? = null) = ingest { repo.addFromUri(uri, attachTo) }
-    fun save(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.update(pass) }
+    fun save(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.updateFromEdit(pass) }
     fun delete(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.delete(pass) }
     fun setEventType(passId: String, type: String) =
         viewModelScope.launch(Dispatchers.IO) { repo.setEventType(passId, type) }
