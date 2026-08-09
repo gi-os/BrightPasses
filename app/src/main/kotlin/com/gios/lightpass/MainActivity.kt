@@ -165,7 +165,14 @@ class MainActivity : ComponentActivity() {
                                 // carry the ticket actually on screen, not the route's id.
                                 onPickMovie = { pid -> nav.navigate("picker/$pid") },
                                 onAddTicket = { pid -> attachTarget = pid; nav.navigate("add") },
+                                onMerge = { pid -> nav.navigate("merge/$pid") },
                                 onBack = { nav.popBackStack() })
+                        }
+                        composable(
+                            "merge/{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.StringType }),
+                        ) { entry ->
+                            MergeScreen(vm, entry.arguments!!.getString("id")!!) { nav.popBackStack() }
                         }
                         composable(
                             "picker/{id}",

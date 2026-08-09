@@ -84,6 +84,10 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
     fun delete(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.delete(pass) }
     fun setEventType(passId: String, type: String) =
         viewModelScope.launch(Dispatchers.IO) { repo.setEventType(passId, type) }
+    fun mergeInto(anchorId: String, otherId: String) =
+        viewModelScope.launch(Dispatchers.IO) { repo.mergeInto(anchorId, otherId) }
+    fun ungroup(passId: String) =
+        viewModelScope.launch(Dispatchers.IO) { repo.ungroup(passId) }
 
     suspend fun searchMovies(title: String): List<MovieCandidate> =
         withContext(Dispatchers.IO) { repo.searchMovies(title) }

@@ -50,12 +50,18 @@ fun DetailScreen(
     id: String,
     onPickMovie: (String) -> Unit,
     onAddTicket: (String) -> Unit,
+    onMerge: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     // Every ticket to this showing, not just the one that was tapped. The page shows one at
     // a time; the pager at the bottom steps through the rest.
-    val tickets by vm.observeTickets(id).collectAsStateWithLifecycle(initialValue = emptyList())
+    //
+    // remember()ed because observeTickets() builds a new Flow each call: unremembered, every
+    // recomposition (every keystroke in EDIT) tore the collection down and re-ran the queries
+    // — the v1.11 lag.
+    val ticketsFlow = remember(id) { vm.observeTickets(id) }
+    val tickets by ticketsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     var selectedId by remember { mutableStateOf(id) }
     val pass = tickets.firstOrNull { it.id == selectedId } ?: tickets.firstOrNull()
     var editing by remember { mutableStateOf(false) }
@@ -145,6 +151,12 @@ fun DetailScreen(
                 onPickMovie = { onPickMovie(p.id) },
                 onPickType = { showType = true },
                 onAddTicket = { onAddTicket(p.id) },
+                onMerge = { onMerge(p.id) },
+                onUngroup = {
+                    // Pulling the shown ticket out of the group: the page stays on it, and
+                    // it is a lone pass again from the next emission.
+                    vm.ungroup(p.id); selectedId = p.id
+                },
                 onSelectTicket = { ix -> tickets.getOrNull(ix)?.let { selectedId = it.id } },
                 onEnlargeCode = { showCode = true }, onShowPhoto = { showTicket = true },
                 wheelActive = pageHasWheel)
@@ -208,6 +220,8 @@ private fun DetailBody(
     onPickMovie: () -> Unit,
     onPickType: () -> Unit,
     onAddTicket: () -> Unit,
+    onMerge: () -> Unit,
+    onUngroup: () -> Unit,
     onSelectTicket: (Int) -> Unit,
     onEnlargeCode: () -> Unit,
     onShowPhoto: () -> Unit,
@@ -266,6 +280,22 @@ private fun DetailBody(
         TextButton(onClick = onAddTicket) {
             Text("ADD TICKET TO THIS EVENT", color = Color(0xFF7FB0FF),
                 style = MaterialTheme.typography.labelSmall)
+        }
+        Row {
+            // Retroactive grouping: fold another pass (added separately, maybe long ago)
+            // into this event. Its whole group comes along.
+            TextButton(onClick = onMerge) {
+                Text("MERGE ANOTHER PASS", color = Color(0xFF7FB0FF),
+                    style = MaterialTheme.typography.labelSmall)
+            }
+            if (ticketCount > 1) {
+                // And the undo — for a merge that grabbed the wrong pass, or an auto-match
+                // that was too clever.
+                TextButton(onClick = onUngroup) {
+                    Text("UNGROUP THIS TICKET", color = Color(0xFF8A8A8A),
+                        style = MaterialTheme.typography.labelSmall)
+                }
+            }
         }
         Spacer(Modifier.height(28.dp))
     }

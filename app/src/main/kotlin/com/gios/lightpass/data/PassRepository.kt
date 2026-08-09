@@ -13,8 +13,10 @@ import com.gios.lightpass.util.TextUtils
 import com.gios.lightpass.util.TicketDate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import java.io.File
 import java.util.UUID
 
@@ -23,22 +25,35 @@ class PassRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences("lightpass", Context.MODE_PRIVATE)
     private val passDir: File get() = File(context.filesDir, "passes").apply { mkdirs() }
 
-    fun observeAll(): Flow<List<PassEntity>> = dao.observeAll()
-    fun observePass(id: String): Flow<PassEntity?> = dao.observePass(id)
+    // Room re-runs a query and emits on EVERY write to the table, changed or not — so a
+    // barcode backfill on one old ticket re-emitted every list on screen. Deduped here, once,
+    // rather than at each collection site.
+    fun observeAll(): Flow<List<PassEntity>> = dao.observeAll().distinctUntilChanged()
+    fun observePass(id: String): Flow<PassEntity?> = dao.observePass(id).distinctUntilChanged()
 
     /**
      * The pass and everything grouped with it — a list of one for a lone ticket. Follows the
      * pass, so if a sibling arrives while the page is open, the page grows a pager.
+     *
+     * The upstream is keyed on the group id, not the whole pass: without that, any edit to
+     * the pass (a barcode filling in, a seat typed) tore down and re-created the group query.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeTickets(id: String): Flow<List<PassEntity>> =
-        dao.observePass(id).flatMapLatest { p ->
-            when {
-                p == null -> flowOf(emptyList())
-                p.groupId == null -> flowOf(listOf(p))
-                else -> dao.observeGroup(p.groupId)
+        dao.observePass(id)
+            .map { it?.groupId ?: it?.id }
+            .distinctUntilChanged()
+            .flatMapLatest { key ->
+                when (key) {
+                    null -> flowOf(emptyList())
+                    else -> dao.observeGroup(key).map { group ->
+                        // A lone ticket has groupId null, so the group query finds nothing;
+                        // fall back to the pass itself.
+                        group.ifEmpty { listOfNotNull(dao.getById(id)) }
+                    }
+                }
             }
-        }
+            .distinctUntilChanged()
     suspend fun getById(id: String): PassEntity? = dao.getById(id)
     suspend fun update(pass: PassEntity) = dao.update(pass)
     suspend fun delete(pass: PassEntity) {
@@ -86,6 +101,36 @@ class PassRepository(private val context: Context) {
     suspend fun setEventType(passId: String, type: String) {
         val pass = dao.getById(passId) ?: return
         for (member in groupOf(pass)) dao.update(member.copy(eventType = type))
+    }
+
+    /**
+     * Merge two passes that were added separately into one event — the retroactive version
+     * of the auto-match, for tickets that predate grouping or parsed too differently to be
+     * recognised. Everything grouped with [otherId] comes along; the anchor's kind wins.
+     */
+    suspend fun mergeInto(anchorId: String, otherId: String) {
+        if (anchorId == otherId) return
+        val anchor = adoptInto(anchorId) ?: return
+        val other = dao.getById(otherId) ?: return
+        if (other.groupId == anchor.groupId) return
+        for (member in groupOf(other)) {
+            dao.update(member.copy(
+                groupId = anchor.groupId,
+                eventType = anchor.eventType,
+                // The event was matched once; its tickets should not disagree about it.
+                posterUrl = anchor.posterUrl, overview = anchor.overview,
+                runtimeMin = anchor.runtimeMin, year = anchor.year,
+            ))
+        }
+    }
+
+    /** Pull one ticket back out of a group — the undo for a merge or a bad auto-match. */
+    suspend fun ungroup(passId: String) {
+        val pass = dao.getById(passId) ?: return
+        val gid = pass.groupId ?: return
+        dao.update(pass.copy(groupId = null))
+        // A group of one is a lone ticket again; don't leave it wearing a group id.
+        dao.getGroup(gid).singleOrNull()?.let { dao.update(it.copy(groupId = null)) }
     }
 
     /**

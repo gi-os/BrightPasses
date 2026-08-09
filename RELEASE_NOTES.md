@@ -1,3 +1,27 @@
+## BrightPasses v1.12 — The lag, and merging by hand
+
+**v1.11's event page was doing its database work over and over. Fixed, plus retroactive merge.**
+
+### The lag
+
+Two of a kind, both from v1.11's grouping. The event page built a fresh database subscription
+on every recomposition — every keystroke in EDIT, every tap — tearing down and re-running its
+queries each time. It is subscribed once per ticket now. And Room re-emits every open query on
+*any* write to the table, changed or not, so background work (like the barcode backfill on old
+tickets) kept re-delivering identical lists for the UI to chew on; every query now drops
+emissions that changed nothing. If it still stutters somewhere specific, shake the phone and
+say where.
+
+### Merge two passes into one event
+
+Auto-matching only helps tickets added after v1.11 that parse alike. **MERGE ANOTHER PASS** on
+the event page lists everything else on the shelf, archive included — pick one and it folds in,
+its whole group with it, inheriting this event's kind and movie match. The undo is next to it:
+**UNGROUP THIS TICKET** pulls the shown ticket back out, for a merge that grabbed the wrong
+pass or an auto-match that was too clever.
+
+---
+
 ## BrightPasses v1.11 — Three tickets, one event, and not everything is a movie
 
 **Tickets to the same showing now live together, and a ticket can be a game or a concert.**
