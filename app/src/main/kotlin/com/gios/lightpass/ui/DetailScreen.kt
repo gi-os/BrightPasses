@@ -32,6 +32,7 @@ import coil.compose.AsyncImage
 import com.gios.lightpass.data.EventType
 import com.gios.lightpass.data.PassEntity
 import com.gios.lightpass.hw.WheelScroll
+import com.gios.lightpass.nav.Directions
 import androidx.compose.ui.text.style.TextOverflow
 import com.google.zxing.BarcodeFormat
 import com.gios.lightpass.util.BarcodeRender
@@ -265,6 +266,7 @@ private fun DetailBody(
         InfoRow("BEGINS", PassTimes.beginsLabel(p) ?: p.time ?: "—", "ENDS", PassTimes.endsLabel(p) ?: "—")
         Spacer(Modifier.height(12.dp))
         InfoRow(EventType.venueLabel(p.eventType), p.theater ?: "—", "SEAT", p.seat ?: "—")
+        DirectionsButton(p.theater)
         Spacer(Modifier.height(12.dp))
         InfoRow("DATE", PassTimes.humanDate(p.date) ?: "—", "PRICE", p.price ?: "—")
         if (isMovie) p.overview?.let {
@@ -548,6 +550,31 @@ private fun codeHeight(format: BarcodeFormat, width: Dp): Dp = when {
     BarcodeRender.isTwoD(format) && format == BarcodeFormat.PDF_417 -> width * 0.42f
     BarcodeRender.isTwoD(format) -> width
     else -> width * 0.36f
+}
+
+/**
+ * "DIRECTIONS TO THE VENUE", under the venue itself, which is where a thumb already is
+ * when somebody has just worked out they are late. Nothing to type: the venue goes over
+ * to BrightWay as text and lands on its search results — see [Directions] for why words
+ * and not a route.
+ *
+ * Hidden rather than disabled when there is no venue on the pass or nothing on the phone
+ * that takes a place: a button that cannot work is worse than no button.
+ */
+@Composable
+private fun DirectionsButton(venue: String?) {
+    val context = LocalContext.current
+    if (venue.isNullOrBlank()) return
+    val canOpen = remember { Directions.available(context) }
+    if (!canOpen) return
+    var failed by remember { mutableStateOf(false) }
+    TextButton(onClick = { failed = !Directions.open(context, venue) }) {
+        Text(
+            if (failed) "NOTHING HERE SHOWS MAPS" else "DIRECTIONS TO THE VENUE",
+            color = if (failed) Color(0xFF8A8A8A) else Color(0xFF7FB0FF),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
 }
 
 @Composable

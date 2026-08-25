@@ -10,6 +10,20 @@
 
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
+    <!--
+        Directions to the venue, handed to BrightWay by name. Addressing an intent to a
+        package makes that package invisible on API 30 and up unless it is declared here,
+        and an invisible package means startActivity throws instead of resolving. The
+        `geo:` fallback needs nothing: implicit intent resolution is not filtered.
+    -->
+    <queries>
+        <package android:name="com.gios.brightway" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
