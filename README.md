@@ -1,3 +1,5 @@
+<img src="docs/icon.png" alt="" width="72" align="left" />
+
 # BrightPasses
 
 Movie ticket stubs on the Light Phone III. Photograph a stub, and BrightPasses reads the
