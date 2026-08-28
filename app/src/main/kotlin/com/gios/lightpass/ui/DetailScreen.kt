@@ -175,17 +175,29 @@ fun DetailScreen(
     }
 
     if (showCode) {
-        pass?.let { p ->
+        // Every ticket of this event that has a code, in order, so the overlay can be swiped
+        // through at the door instead of closed and reopened per person. Passes with no code
+        // at all are left out — a swipe must never land on a blank white screen.
+        val coded = remember(tickets) {
+            tickets.mapNotNull { t -> ticketCode(t)?.let { CodedTicket(t, it) } }
+        }
+        val current = coded.firstOrNull { it.pass.id == selectedId } ?: coded.firstOrNull()
+        if (current == null) {
+            LaunchedEffect(Unit) { showCode = false }
+        } else {
             // The ticket's own code if it was read off the photograph, otherwise the reference
             // redrawn. Same overlay either way — what differs is whether it will scan.
-            ticketCode(p)?.let { shown ->
-                BookingCodeOverlay(
-                    code = shown.content,
-                    format = shown.format,
-                    onShowPhoto = { showCode = false; showTicket = true },
-                    onClose = { showCode = false },
-                )
-            }
+            BookingCodeOverlay(
+                shown = current.code,
+                seat = current.pass.seat,
+                index = coded.indexOf(current),
+                count = coded.size,
+                // Turning a page here moves the whole detail page underneath too, the same way
+                // the TICKET n OF m arrows do — close the overlay and you are on that ticket.
+                onSelect = { ix -> selectedId = coded[(ix + coded.size) % coded.size].pass.id },
+                onShowPhoto = { showCode = false; showTicket = true },
+                onClose = { showCode = false },
+            )
         }
     }
 
@@ -370,6 +382,9 @@ private class TicketCode(
     val fromTicket: Boolean,
 )
 
+/** A pass paired with the code it can actually show — see [ticketCode]. */
+private class CodedTicket(val pass: PassEntity, val code: TicketCode)
+
 /** The best code available for this pass: the scanned one, else the reference, else none. */
 private fun ticketCode(p: PassEntity): TicketCode? {
     val scanned = p.scannedCode?.trim()?.takeIf { it.isNotEmpty() }
@@ -498,19 +513,26 @@ private fun rememberGeneratedCode(shown: TicketCode, budget: Dp): GeneratedCode?
  */
 @Composable
 private fun BookingCodeOverlay(
-    code: String,
-    format: BarcodeFormat,
+    shown: TicketCode,
+    seat: String?,
+    index: Int,
+    count: Int,
+    onSelect: (Int) -> Unit,
     onShowPhoto: () -> Unit,
     onClose: () -> Unit,
 ) {
     BrightWhileVisible()
     Surface(color = Color.White, modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val shown = remember(code, format) { TicketCode(code, format, fromTicket = false) }
-            val generated = rememberGeneratedCode(shown, maxWidth - OVERLAY_MARGIN * 2)
+            val generated = rememberGeneratedCode(
+                shown, (maxWidth - OVERLAY_MARGIN * 2) * OVERLAY_CODE_FRACTION,
+            )
             if (generated != null) {
-                ZoomableBitmap(generated.image, "Ticket code $code",
-                    generated.width, generated.height)
+                ZoomableBitmap(
+                    generated.image, "Ticket code ${shown.content}",
+                    generated.width, generated.height,
+                    onSwipe = if (count > 1) { step -> onSelect(index + step) } else null,
+                )
             }
             TextButton(onClick = onClose,
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
@@ -524,12 +546,41 @@ private fun BookingCodeOverlay(
                 Modifier.align(Alignment.BottomCenter).padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(code, color = Color.Black, fontFamily = FontFamily.Monospace,
-                    fontSize = 18.sp, letterSpacing = 1.5.sp, textAlign = TextAlign.Center)
+                if (count > 1) {
+                    // The whole point of the smaller code: the switch is on the same screen as
+                    // the thing being scanned, so the next person in the queue is one tap away
+                    // and the arrows are there for anyone who does not think to swipe.
+                    OverlayPager(index, count, seat, onSelect)
+                    Spacer(Modifier.height(4.dp))
+                }
+                Text(shown.content, color = Color.Black, fontFamily = FontFamily.Monospace,
+                    fontSize = 18.sp, letterSpacing = 1.5.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(6.dp))
-                Text("GENERATED FROM THE BOOKING CODE", color = Color(0xFF6A6A6A),
-                    style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
+                Text(
+                    if (shown.fromTicket) "READ OFF YOUR TICKET"
+                    else "GENERATED FROM THE BOOKING CODE",
+                    color = Color(0xFF6A6A6A),
+                    style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center,
+                )
             }
+        }
+    }
+}
+
+/** [TicketPager] in the overlay's colours — black on white, and it wraps at both ends. */
+@Composable
+private fun OverlayPager(index: Int, count: Int, seat: String?, onSelect: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = { onSelect(index - 1) }) {
+            Text("PREV", color = Color.Black, style = MaterialTheme.typography.labelSmall)
+        }
+        Text(
+            "TICKET ${index + 1} OF $count" + (seat?.let { " · SEAT $it" } ?: ""),
+            style = MaterialTheme.typography.labelSmall, color = Color(0xFF4A4A4A),
+        )
+        TextButton(onClick = { onSelect(index + 1) }) {
+            Text("NEXT", color = Color.Black, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -538,6 +589,16 @@ private fun BookingCodeOverlay(
 private val CARD_QUIET_ZONE = 12.dp
 
 private val OVERLAY_MARGIN = 12.dp
+
+/**
+ * The enlarged code is drawn at 90% of the width it could have.
+ *
+ * It used to take the whole panel, which left the TICKET n OF m switch off screen: at the door
+ * with three tickets on one phone you had to close the overlay, step the pager, and reopen it
+ * per person. A tenth off the width buys the row underneath and costs nothing a handheld
+ * notices — the modules are still generated at device pixels, there are just fewer of them.
+ */
+private const val OVERLAY_CODE_FRACTION = 0.9f
 
 /**
  * How tall a code of this kind should be drawn.

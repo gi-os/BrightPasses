@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.gios.lightpass.hw.WheelScroll
 import java.io.File
@@ -50,8 +51,9 @@ fun ZoomableBitmap(
     width: Dp,
     height: Dp,
     modifier: Modifier = Modifier,
+    onSwipe: ((Int) -> Unit)? = null,
 ) {
-    ZoomableSurface(modifier, Color.White) { layer ->
+    ZoomableSurface(modifier, Color.White, onSwipe) { layer ->
         Image(
             bitmap = bitmap,
             contentDescription = contentDescription,
@@ -68,16 +70,22 @@ fun ZoomableBitmap(
  * The [content] is handed the `graphicsLayer` to apply itself rather than being wrapped in it,
  * because the two callers disagree about sizing — the photo fills the screen, the barcode must
  * not — and that decision belongs to them.
+ *
+ * [onSwipe] is an optional horizontal page turn, called with -1 (swipe right, go back) or +1.
+ * It fires only at 1x, where a sideways drag has nothing else to do: once zoomed in, the same
+ * drag is a pan and turning the page under a magnified code would be maddening.
  */
 @Composable
 private fun ZoomableSurface(
     modifier: Modifier,
     background: Color,
+    onSwipe: ((Int) -> Unit)? = null,
     content: @Composable (Modifier) -> Unit,
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offX by remember { mutableFloatStateOf(0f) }
     var offY by remember { mutableFloatStateOf(0f) }
+    var swipeX by remember { mutableFloatStateOf(0f) }
 
     /*
      * The pan has no scroll state to hoist, so the wheel gets a scroller that writes
@@ -102,10 +110,24 @@ private fun ZoomableSurface(
         modifier
             .fillMaxSize()
             .background(background)
-            .pointerInput(Unit) {
+            .pointerInput(onSwipe) {
+                val threshold = SWIPE_THRESHOLD.toPx()
                 detectTransformGestures { _, pan, zoom, _ ->
                     scale = (scale * zoom).coerceIn(1f, 6f)
-                    if (scale > 1f) { offX += pan.x; offY += pan.y } else { offX = 0f; offY = 0f }
+                    if (scale > 1f) {
+                        offX += pan.x; offY += pan.y; swipeX = 0f
+                    } else {
+                        offX = 0f; offY = 0f
+                        if (onSwipe != null) {
+                            swipeX += pan.x
+                            // Fires mid-drag rather than on release: detectTransformGestures has
+                            // no end callback, and a page that turns as the thumb crosses the
+                            // threshold reads as more responsive anyway. Zeroing the accumulator
+                            // means a long drag can turn twice, which is what a long drag means.
+                            if (swipeX >= threshold) { onSwipe(-1); swipeX = 0f }
+                            else if (swipeX <= -threshold) { onSwipe(1); swipeX = 0f }
+                        }
+                    }
                 }
             },
         contentAlignment = Alignment.Center,
@@ -117,3 +139,6 @@ private fun ZoomableSurface(
         )
     }
 }
+
+/** How far sideways a thumb has to travel at 1x before the page turns. */
+private val SWIPE_THRESHOLD = 64.dp
