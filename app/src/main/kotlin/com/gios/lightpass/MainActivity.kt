@@ -156,9 +156,11 @@ class MainActivity : ComponentActivity() {
                             LaunchedEffect(Unit) { vm.startBurst() }
                             val pending by vm.pending.collectAsStateWithLifecycle()
                             val progress by vm.burstProgress.collectAsStateWithLifecycle()
+                            val canShoot by vm.canShoot.collectAsStateWithLifecycle()
                             CameraScreen(
                                 shotsPending = pending,
                                 burstProgress = progress,
+                                canShoot = canShoot,
                                 onShot = { bmp -> vm.captureShot(bmp, attachTarget) },
                                 onDone = { vm.endBurst(); doneAdding() })
                         }

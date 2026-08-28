@@ -9,6 +9,7 @@ import com.gios.lightpass.ai.MovieCandidate
 import com.gios.lightpass.data.EventType
 import com.gios.lightpass.data.PassEntity
 import com.gios.lightpass.data.PassRepository
+import com.gios.lightpass.report.Trouble
 import com.gios.lightpass.util.PassTimes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -83,6 +84,18 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private val ingestDispatcher = Dispatchers.IO.limitedParallelism(1)
+
+    /**
+     * Encoding is separate from reading, and also one at a time.
+     *
+     * A frame off the preview is a full ARGB_8888 bitmap — megabytes each — and it stays in
+     * memory until it reaches disk. Encoding them in parallel means holding all of them at once,
+     * which on this phone is how three quick shots turn into an OutOfMemoryError, and an OOM
+     * inside CameraX unbinds the camera: the preview goes black and stays black. One at a time,
+     * with the buffer capped below, means at most a couple are ever resident.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val encodeDispatcher = Dispatchers.IO.limitedParallelism(1)
     private val jobs = Channel<IngestJob>(Channel.UNLIMITED)
 
     /** Shots taken and not yet read. Counts down; the camera draws it as the buffer bar. */
@@ -91,6 +104,17 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Shots taken in this camera session, so the bar can fill against a fixed denominator. */
     private val _burstTotal = MutableStateFlow(0)
+
+    /**
+     * Whether the shutter will take another one.
+     *
+     * "As many shots as it can" has a ceiling, and it is better to show the ceiling than to
+     * discover it as a crash: past [MAX_BUFFER] unread shots the button goes quiet until the
+     * queue drains, the same way a camera's buffer does.
+     */
+    val canShoot: StateFlow<Boolean> =
+        _pending.map { it < MAX_BUFFER }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     /** 0 when the buffer is full, 1 when it has drained — the fill of the bar. */
     val burstProgress: StateFlow<Float> =
@@ -119,7 +143,7 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
                             job.uri != null -> repo.addFromUri(job.uri, job.attachTo, burstAnchor)
                             else -> null
                         }
-                    }.getOrNull()
+                    }.onFailure { Trouble.record("read that ticket", it) }.getOrNull()
                 }
                 if (id != null && job.burst && burstAnchor == null) burstAnchor = id
                 _pending.update { (it - 1).coerceAtLeast(0) }
@@ -172,14 +196,17 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
      * shot four to wait behind shot one's model call just to reach the disk.
      */
     fun captureShot(bitmap: Bitmap, attachTo: String? = null) {
+        if (_pending.value >= MAX_BUFFER) { runCatching { bitmap.recycle() }; return }
         _pending.update { it + 1 }
         _burstTotal.update { it + 1 }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(encodeDispatcher) {
+            // OutOfMemoryError is an Error, not an Exception, so runCatching is deliberate here:
+            // a frame that cannot be encoded should cost that one shot, not the camera.
             val out = runCatching {
                 repo.newCaptureFile().also { f ->
                     f.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 92, it) }
                 }
-            }.getOrNull()
+            }.onFailure { Trouble.record("save that photograph", it) }.getOrNull()
             runCatching { bitmap.recycle() }
             if (out == null) _pending.update { (it - 1).coerceAtLeast(0) }
             else jobs.send(IngestJob(file = out, attachTo = attachTo, burst = true))
@@ -226,3 +253,6 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) { repo.applyMovie(passId, cand) }
 
 }
+
+/** How many unread shots the buffer will hold before the shutter stops taking them. */
+private const val MAX_BUFFER = 8

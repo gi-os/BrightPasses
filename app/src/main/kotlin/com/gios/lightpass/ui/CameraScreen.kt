@@ -42,6 +42,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 fun CameraScreen(
     shotsPending: Int,
     burstProgress: Float,
+    canShoot: Boolean,
     onShot: (Bitmap) -> Unit,
     onDone: () -> Unit,
 ) {
@@ -56,7 +57,13 @@ fun CameraScreen(
     // Counted here rather than in the view model because it is about this visit to the camera:
     // how many times the finger went down, including shots still waiting to be read.
     var shotsTaken by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) { controller.bindToLifecycle(lifecycleOwner) }
+    // Bound in a DisposableEffect rather than a LaunchedEffect so leaving the screen releases
+    // the camera. A controller left bound to a dead composition is one of the ways this panel
+    // comes back black on the next visit.
+    DisposableEffect(lifecycleOwner) {
+        runCatching { controller.bindToLifecycle(lifecycleOwner) }
+        onDispose { runCatching { controller.unbind() } }
+    }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
@@ -95,10 +102,13 @@ fun CameraScreen(
                 Spacer(Modifier.height(8.dp))
             }
             Button(
+                enabled = canShoot,
                 onClick = {
                     // PreviewView.bitmap is already a snapshot copy, so it is safe to hand
-                    // straight over; everything expensive about it happens elsewhere.
-                    val bmp = preview?.bitmap ?: return@Button
+                    // straight over; everything expensive about it happens elsewhere. runCatching
+                    // because the readback allocates, and the shot that cannot be taken must cost
+                    // that shot rather than the camera.
+                    val bmp = runCatching { preview?.bitmap }.getOrNull() ?: return@Button
                     shotsTaken++
                     onShot(bmp)
                 },
@@ -107,8 +117,14 @@ fun CameraScreen(
                 ),
                 modifier = Modifier.height(64.dp).fillMaxWidth(0.7f),
             ) {
-                Text(if (shotsTaken == 0) "Capture" else "Capture next",
-                    style = MaterialTheme.typography.titleLarge)
+                Text(
+                    when {
+                        !canShoot -> "Buffer full"
+                        shotsTaken == 0 -> "Capture"
+                        else -> "Capture next"
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                )
             }
         }
     }
