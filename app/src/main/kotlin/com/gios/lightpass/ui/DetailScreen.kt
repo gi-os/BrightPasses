@@ -524,9 +524,7 @@ private fun BookingCodeOverlay(
     BrightWhileVisible()
     Surface(color = Color.White, modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val generated = rememberGeneratedCode(
-                shown, (maxWidth - OVERLAY_MARGIN * 2) * OVERLAY_CODE_FRACTION,
-            )
+            val generated = rememberGeneratedCode(shown, maxWidth - OVERLAY_MARGIN * 2)
             if (generated != null) {
                 ZoomableBitmap(
                     generated.image, "Ticket code ${shown.content}",
@@ -588,17 +586,14 @@ private fun OverlayPager(index: Int, count: Int, seat: String?, onSelect: (Int) 
 /** White around the code inside the card, on top of the quiet zone ZXing draws into the bitmap. */
 private val CARD_QUIET_ZONE = 12.dp
 
-private val OVERLAY_MARGIN = 12.dp
-
 /**
- * The enlarged code is drawn at 90% of the width it could have.
+ * The enlarged code takes the whole panel less this margin.
  *
- * It used to take the whole panel, which left the TICKET n OF m switch off screen: at the door
- * with three tickets on one phone you had to close the overlay, step the pager, and reopen it
- * per person. A tenth off the width buys the row underneath and costs nothing a handheld
- * notices — the modules are still generated at device pixels, there are just fewer of them.
+ * v1.15.0 briefly drew it at 90% to make room for the pager underneath. It did not need the
+ * room — the pager sits in the strip below a centred code — and a code held up to a handheld
+ * wants every module it can get, so the tenth came back.
  */
-private const val OVERLAY_CODE_FRACTION = 0.9f
+private val OVERLAY_MARGIN = 12.dp
 
 /**
  * How tall a code of this kind should be drawn.
