@@ -31,8 +31,8 @@ android {
         applicationId = "com.gios.lightpass"
         minSdk = 29
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.16.0"
+        versionCode = 19
+        versionName = "1.15.2"
 
         buildConfigField("String", "REPORT_TOKEN", "\"$reportToken\"")
         buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")
@@ -73,7 +73,6 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")

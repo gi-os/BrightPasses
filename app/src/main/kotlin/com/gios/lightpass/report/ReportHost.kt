@@ -10,7 +10,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import android.content.ContextWrapper
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -57,11 +56,7 @@ fun ReportOverlay() {
             .firstOrNull()
     }
 
-    // Two states, not one: something has been *offered* (the chip), and the offer has been
-    // *taken* (the sheet). They used to be the same variable, which is why anything that went
-    // wrong put a sheet across the screen without being asked.
-    var pending by remember { mutableStateOf<ReportReason?>(null) }
-    var sheetOpen by remember { mutableStateOf(false) }
+    var reason by remember { mutableStateOf<ReportReason?>(null) }
     val failure by Trouble.latest.collectAsState()
 
     // Read once. The file is deleted as soon as it has been offered, so that a crash is asked
@@ -70,7 +65,7 @@ fun ReportOverlay() {
 
     val detector = remember {
         ShakeDetector(context) {
-            if (pending == null && !sheetOpen) pending = ReportReason.Shaken
+            if (reason == null) reason = ReportReason.Shaken
         }
     }
 
@@ -78,13 +73,13 @@ fun ReportOverlay() {
     // that had no token at all — goes out now.
     LaunchedEffect(Unit) {
         runCatching { Reports.flush(context) }
-        if (!crash.isNullOrBlank()) pending = ReportReason.Crashed
+        if (!crash.isNullOrBlank()) reason = ReportReason.Crashed
     }
 
     // A failure the app noticed itself only raises the sheet if nothing else already has:
     // being asked about a stale feed on top of a crash report is how people turn this off.
     LaunchedEffect(failure) {
-        if (failure != null && pending == null && !sheetOpen) pending = ReportReason.Failed
+        if (failure != null && reason == null) reason = ReportReason.Failed
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -109,36 +104,15 @@ fun ReportOverlay() {
         }
     }
 
-    // The offer: small, in a corner, and it takes silence for an answer. Hidden while the
-    // sheet is up, because by then it has been answered.
-    pending?.takeIf { !sheetOpen }?.let { why ->
-        // The shake that raised this must not raise a second one behind it.
+    reason?.let { why ->
+        // The shake that opened the sheet must not open a second one behind it.
         LaunchedEffect(why) { detector.forget() }
-        ReportChip(
-            reason = why,
-            // Above the capture button and the DETAIL page's own bottom row, so the chip never
-            // sits on the one control a thumb is reaching for.
-            corner = Alignment.BottomStart,
-            onOpen = { sheetOpen = true },
-            onExpire = {
-                // Silence is "not now", not "no". The crash log stays on disk so the next launch
-                // offers it again; only the in-memory failure is dropped, and Trouble will not
-                // re-raise the same one for an hour.
-                pending = null
-                if (why == ReportReason.Failed) Trouble.clear()
-                detector.forget()
-            },
-        )
-    }
-
-    pending?.takeIf { sheetOpen }?.let { why ->
         ReportSheet(
             reason = why,
             failure = if (why == ReportReason.Failed) failure?.what else null,
             appName = ReportApp.NAME,
             onDismiss = {
-                pending = null
-                sheetOpen = false
+                reason = null
                 Trouble.clear()
                 if (why == ReportReason.Crashed) CrashLog.clear(context)
             },
@@ -153,8 +127,7 @@ fun ReportOverlay() {
                 )
                 // Closed before the send, not after: submit() queues to disk first, so there is
                 // nothing here that can fail in a way the sheet would need to report.
-                pending = null
-                sheetOpen = false
+                reason = null
                 Trouble.clear()
                 CrashLog.clear(context)
                 scope.launch { runCatching { Reports.submit(context, report) } }

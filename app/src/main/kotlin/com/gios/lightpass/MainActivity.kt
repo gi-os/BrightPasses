@@ -151,18 +151,9 @@ class MainActivity : ComponentActivity() {
                                 onBack = { nav.popBackStack() })
                         }
                         composable("camera") {
-                            // One visit to the camera is one burst: startBurst on arrival,
-                            // endBurst on the way out, and every shot between them stacks.
-                            LaunchedEffect(Unit) { vm.startBurst() }
-                            val pending by vm.pending.collectAsStateWithLifecycle()
-                            val progress by vm.burstProgress.collectAsStateWithLifecycle()
-                            val canShoot by vm.canShoot.collectAsStateWithLifecycle()
                             CameraScreen(
-                                shotsPending = pending,
-                                burstProgress = progress,
-                                canShoot = canShoot,
-                                onShot = { bmp -> vm.captureShot(bmp, attachTarget) },
-                                onDone = { vm.endBurst(); doneAdding() })
+                                newFile = { vm.newCaptureFile() },
+                                onCaptured = { file -> vm.addFromFile(file, attachTarget); doneAdding() })
                         }
                         composable(
                             "viewer/{id}",

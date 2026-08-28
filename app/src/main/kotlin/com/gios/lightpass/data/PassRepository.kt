@@ -79,11 +79,11 @@ class PassRepository(private val context: Context) {
 
     fun newCaptureFile(): File = File(passDir, "cap_${UUID.randomUUID()}.jpg")
 
-    suspend fun addFromFile(file: File, attachTo: String? = null, burstAnchor: String? = null): String =
-        addBytes(file.readBytes(), attachTo, burstAnchor).also { runCatching { file.delete() } }
-    suspend fun addFromUri(uri: Uri, attachTo: String? = null, burstAnchor: String? = null): String {
+    suspend fun addFromFile(file: File, attachTo: String? = null): String =
+        addBytes(file.readBytes(), attachTo).also { runCatching { file.delete() } }
+    suspend fun addFromUri(uri: Uri, attachTo: String? = null): String {
         val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-        return addBytes(bytes, attachTo, burstAnchor)
+        return addBytes(bytes, attachTo)
     }
 
     /** Search TMDb for the movie so the user can pick (we no longer auto-guess). */
@@ -215,18 +215,10 @@ class PassRepository(private val context: Context) {
             .firstOrNull { time == null || it.time == null || it.time == time }
     }
 
-    /** Two tickets from one burst may join unless they name different days outright. */
-    private fun agreesOnDate(anchor: PassEntity, date: String?): Boolean =
-        date == null || anchor.date == null || anchor.date == date
-
     private fun normalizedTitle(t: String?): String? =
         t?.lowercase()?.replace(Regex("[^a-z0-9]"), "")?.takeIf { it.isNotEmpty() }
 
-    private suspend fun addBytes(
-        bytes: ByteArray,
-        attachTo: String? = null,
-        burstAnchor: String? = null,
-    ): String {
+    private suspend fun addBytes(bytes: ByteArray, attachTo: String? = null): String {
         val id = UUID.randomUUID().toString()
         val upright = ImageUtils.normalizeUpright(bytes)
         val original = ImageUtils.saveJpeg(upright, File(passDir, "$id.jpg"))
@@ -251,20 +243,9 @@ class PassRepository(private val context: Context) {
         // Whose event this ticket joins, if anyone's. ADD TICKET says so outright; a plain
         // add still recognises a showing already on the shelf by title + date + time, which
         // is what makes three codes for the same film land as one entry.
-        //
-        // [burstAnchor] is the third route, and the weakest on purpose: shots taken back to back
-        // in one camera session are almost always one stack, but "almost always" is not a licence
-        // to fold two events together. So it only applies when the title match found nothing —
-        // a shot that recognised a different showing keeps its own group — and only when the
-        // dates do not actually disagree. What it rescues is the common case: a photograph the
-        // model read badly, or not at all, which used to land on the shelf as a lone
-        // "Ticket 4f2a" beside the three it was taken with.
-        val matched = if (attachTo == null && title != null) findSameEvent(title, date, time) else null
         val anchor: PassEntity? = when {
             attachTo != null -> adoptInto(attachTo)
-            matched != null -> adoptInto(matched.id)
-            burstAnchor != null ->
-                dao.getById(burstAnchor)?.takeIf { agreesOnDate(it, date) }?.let { adoptInto(it.id) }
+            title != null -> findSameEvent(title, date, time)?.let { adoptInto(it.id) }
             else -> null
         }
 
