@@ -8,8 +8,10 @@ import com.gios.lightpass.ai.MovieCandidate
 import com.gios.lightpass.data.EventType
 import com.gios.lightpass.data.PassEntity
 import com.gios.lightpass.data.PassRepository
+import com.gios.lightpass.report.Trouble
 import com.gios.lightpass.util.PassTimes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,6 +61,17 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    /**
+     * Every photograph is read on this one thread, in the order it arrived.
+     *
+     * Each add used to launch its own coroutine on Dispatchers.IO, so a few adds in quick
+     * succession meant that many Haiku calls, ZXing decodes and full-size bitmaps live at
+     * once — on a phone that has none of those to spare. Serialising costs nothing in
+     * wall-clock time; the work was contending, not parallelising.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val ingestDispatcher = Dispatchers.IO.limitedParallelism(1)
+
     private val _apiKey = MutableStateFlow(repo.getApiKey())
     val apiKeyState: StateFlow<String> = _apiKey.asStateFlow()
     private val _tmdbKey = MutableStateFlow(repo.getTmdbKey())
@@ -98,8 +111,12 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun ingest(block: suspend () -> String) {
         _busy.value = true
-        viewModelScope.launch(Dispatchers.IO) {
-            val id = runCatching { block() }.getOrNull()
+        viewModelScope.launch(ingestDispatcher) {
+            // runCatching holds Throwable, which matters here: reading a ticket allocates a
+            // full-size bitmap, and an OutOfMemoryError is an Error, not an Exception.
+            val id = runCatching { block() }
+                .onFailure { Trouble.record("read that ticket", it) }
+                .getOrNull()
             _busy.value = false
             if (id != null) {
                 // The picker exists to identify a film. A ticket that joined a group already

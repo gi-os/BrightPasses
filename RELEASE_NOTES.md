@@ -1,13 +1,17 @@
-## BrightPasses v1.14 — the venue, handed over
+## BrightPasses v1.18 — the shutter takes one answer
 
-**DIRECTIONS TO THE VENUE, under the venue.** A ticket has always known the one thing this app
-could do nothing with: where the place is. It sat on the stub as text, to be retyped into a search
-box at the top of a subway staircase, which is exactly the moment nobody wants to type. It goes to
-BrightWay now, in one tap, from where the thumb already is.
+**Three fast taps no longer freeze the camera into a black screen.** The capture button looked
+single-shot, but it kept firing until the screen actually left — and every extra tap compressed a
+full-resolution photograph on the interface thread and started another reading of it. Three of
+those at once is more memory than this phone has, and running out inside the camera is the black
+preview that never came back without a force-stop. The second tap now does nothing, instead of
+starting a second full-size encode on the UI thread.
 
-The venue goes over as words rather than a route: a venue name parsed off a photographed ticket is
-a guess, and BrightWay lands on its search results so the guess is confirmed by the person holding
-the phone before anything starts giving them directions. A phone without BrightWay gets the
-standard `geo:0,0?q=` shape instead, so any maps app answers. No venue on the pass, or nothing on
-the phone that takes a place, and the button is not drawn at all.
+**A failed capture says so and lets you try again.** A shot that cannot be taken or saved now
+costs that shot: the app offers to report what went wrong, the shutter wakes back up, and the
+preview stays live — instead of silently killing the camera.
 
+**Photo processing happens one at a time, off the interface thread.** Saving a photograph and
+reading the ticket in it each run on their own single lane, so nothing heavy ever sits between
+your finger and the next preview frame — and leaving the camera now releases it properly, rather
+than leaving it bound to a screen that no longer exists.
