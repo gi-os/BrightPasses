@@ -168,6 +168,7 @@ scanner would compile, install, and silently never work.
 
 | Version | Commit | Change |
 | --- | --- | --- |
+| v1.19.0 | (this release) | Receives a picture from another tool (`ACTION_SEND image/*`) with its source address; Web Tools' MAKE A TICKET uses it. OPEN THE PAGE on the pass leads back. Room v6 adds `sourceUrl` |
 | v1.9.0 | (this release) | **The barcode is now read off the photograph** rather than re-encoded from the parsed reference, so what's on screen is the cinema's own payload in the cinema's own symbology. Seven symbologies attempted over four scales, two rotations, two binarizers and an inverted pass; tickets already on the shelf are backfilled in the background. Real Room migration, so a schema change no longer empties the shelf |
 | v1.8.0 | `c7fdbb8` | Year-less dates resolve to the next occurrence in Kotlin instead of being guessed by the model; scannable booking code at the foot of the ticket, with a brightness boost and an editable code field |
 | v1.7.0 | `80f0fa1` | Scroll the ticket list, detail page and search results with the hardware wheel |

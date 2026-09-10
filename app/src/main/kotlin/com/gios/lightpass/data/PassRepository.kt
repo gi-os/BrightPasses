@@ -81,9 +81,9 @@ class PassRepository(private val context: Context) {
 
     suspend fun addFromFile(file: File, attachTo: String? = null): String =
         addBytes(file.readBytes(), attachTo).also { runCatching { file.delete() } }
-    suspend fun addFromUri(uri: Uri, attachTo: String? = null): String {
+    suspend fun addFromUri(uri: Uri, attachTo: String? = null, sourceUrl: String? = null): String {
         val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-        return addBytes(bytes, attachTo)
+        return addBytes(bytes, attachTo, sourceUrl)
     }
 
     /** Search TMDb for the movie so the user can pick (we no longer auto-guess). */
@@ -218,7 +218,7 @@ class PassRepository(private val context: Context) {
     private fun normalizedTitle(t: String?): String? =
         t?.lowercase()?.replace(Regex("[^a-z0-9]"), "")?.takeIf { it.isNotEmpty() }
 
-    private suspend fun addBytes(bytes: ByteArray, attachTo: String? = null): String {
+    private suspend fun addBytes(bytes: ByteArray, attachTo: String? = null, sourceUrl: String? = null): String {
         val id = UUID.randomUUID().toString()
         val upright = ImageUtils.normalizeUpright(bytes)
         val original = ImageUtils.saveJpeg(upright, File(passDir, "$id.jpg"))
@@ -271,6 +271,7 @@ class PassRepository(private val context: Context) {
                 groupId = anchor?.groupId,
                 // A sibling copies the group's card instead of asking ESPN again.
                 artPath = copiedArt(anchor, id),
+                sourceUrl = sourceUrl?.takeIf { it.isNotBlank() },
             )
         )
 

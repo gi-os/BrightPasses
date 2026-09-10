@@ -41,6 +41,12 @@ data class PassEntity(
      * never blank a sibling's art. Null means show the photo, same as ever.
      */
     val artPath: String? = null,
+    /**
+     * Where the ticket came from, when it came from a page rather than a photograph: a
+     * `webtools://` address Web Tools handed over with the picture. A pass made from a
+     * screenshot is a reminder; the live page is the thing the gate scans.
+     */
+    val sourceUrl: String? = null,
 )
 
 /** The three kinds of thing a ticket can be for. Strings, not an enum — Room stores them raw. */
@@ -103,7 +109,7 @@ interface PassDao {
     suspend fun delete(id: String)
 }
 
-@Database(entities = [PassEntity::class], version = 5, exportSchema = false)
+@Database(entities = [PassEntity::class], version = 6, exportSchema = false)
 abstract class PassDatabase : RoomDatabase() {
     abstract fun passDao(): PassDao
 
@@ -143,12 +149,19 @@ abstract class PassDatabase : RoomDatabase() {
             }
         }
 
+        /** The page a ticket came from. Additive and nullable. */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE passes ADD COLUMN sourceUrl TEXT")
+            }
+        }
+
         @Volatile private var INSTANCE: PassDatabase? = null
         fun get(context: Context): PassDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext, PassDatabase::class.java, "lightpass.db"
-                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { INSTANCE = it }
             }
     }
 }

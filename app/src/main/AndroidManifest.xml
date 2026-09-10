@@ -18,6 +18,7 @@
     -->
     <queries>
         <package android:name="com.gios.brightway" />
+        <package android:name="com.gios.webtools" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="geo" />
@@ -49,6 +50,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="lightpass" android:host="pass" />
+            </intent-filter>
+            <!-- A picture of a ticket, handed over by another tool. Web Tools sends the page
+                 it is showing this way (MAKE A TICKET in its pull-down), with the page's own
+                 address in EXTRA_TEXT so the pass can lead back to it. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
             </intent-filter>
         </activity>
 

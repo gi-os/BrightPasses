@@ -94,7 +94,8 @@ class PassViewModel(app: Application) : AndroidViewModel(app) {
     fun newCaptureFile(): File = repo.newCaptureFile()
 
     fun addFromFile(file: File, attachTo: String? = null) = ingest { repo.addFromFile(file, attachTo) }
-    fun addFromUri(uri: Uri, attachTo: String? = null) = ingest { repo.addFromUri(uri, attachTo) }
+    fun addFromUri(uri: Uri, attachTo: String? = null, sourceUrl: String? = null) =
+        ingest { repo.addFromUri(uri, attachTo, sourceUrl) }
     fun save(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.updateFromEdit(pass) }
     fun delete(pass: PassEntity) = viewModelScope.launch(Dispatchers.IO) { repo.delete(pass) }
     fun setEventType(passId: String, type: String) =

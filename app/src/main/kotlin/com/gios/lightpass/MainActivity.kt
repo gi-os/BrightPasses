@@ -64,10 +64,26 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 
+    /**
+     * A picture sent by another tool (`ACTION_SEND image/*`), with where it came from. Web
+     * Tools does this from its pull-down; the picture is a screenshot of the page and the
+     * text is the page's `webtools://` address. Same flow shape as [pendingPass], for the
+     * same reason: the activity may already be up when the second one arrives.
+     */
+    private val pendingShare = MutableStateFlow<Pair<Uri, String?>?>(null)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingPass.value = passIdIn(intent)
+        pendingShare.value = shareIn(intent)
+    }
+
+    private fun shareIn(intent: Intent?): Pair<Uri, String?>? {
+        if (intent?.action != Intent.ACTION_SEND) return null
+        @Suppress("DEPRECATION")
+        val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) ?: return null
+        return uri to intent.getStringExtra(Intent.EXTRA_TEXT)
     }
 
     private fun passIdIn(intent: Intent?): String? {
@@ -82,6 +98,7 @@ class MainActivity : ComponentActivity() {
         // already installed and only writes a file, so it is safe this early.
         CrashLog.install(this)
         pendingPass.value = passIdIn(intent)
+        pendingShare.value = shareIn(intent)
         setContent {
             LightPassTheme {
                 val nav = rememberNavController()
@@ -116,6 +133,14 @@ class MainActivity : ComponentActivity() {
                     scanTarget = target
                     scanQr.launch(ScanOptions().setBeepEnabled(false).setPrompt(
                         if (target == "tmdb") "Scan TMDb key QR" else "Scan API key QR"))
+                }
+
+                val shared by pendingShare.collectAsStateWithLifecycle()
+                LaunchedEffect(shared) {
+                    val (uri, from) = shared ?: return@LaunchedEffect
+                    pendingShare.value = null
+                    vm.addFromUri(uri, null, from)
+                    nav.popBackStack("home", false)
                 }
 
                 val requestedPass by pendingPass.collectAsStateWithLifecycle()

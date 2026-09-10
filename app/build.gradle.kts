@@ -31,8 +31,8 @@ android {
         applicationId = "com.gios.lightpass"
         minSdk = 29
         targetSdk = 35
-        versionCode = 20
-        versionName = "1.18.0"
+        versionCode = 21
+        versionName = "1.19.0"
 
         buildConfigField("String", "REPORT_TOKEN", "\"$reportToken\"")
         buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")

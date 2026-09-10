@@ -69,6 +69,9 @@ object PassParser {
         Exclude any hand, table, background, or empty margins outside the ticket.
         Trace the actual paper edges. Only use [0,0,1000,1000] if the paper truly
         bleeds to every edge of the photo.
+        The image may instead be a screenshot of a web page, an e-mail, or an app showing
+        a ticket or an order. Then read the event from the screen and make "box" the part
+        of the screen that shows the ticket itself, leaving out menus and page chrome.
         Today is $today. A ticket with no year printed on it is for an UPCOMING showing,
         so do not guess the year: return MM-DD and let the app work it out. Return a
         four-digit year only when you can actually read one on the paper.

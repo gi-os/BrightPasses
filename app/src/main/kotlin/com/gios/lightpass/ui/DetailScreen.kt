@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -279,6 +281,7 @@ private fun DetailBody(
         Spacer(Modifier.height(12.dp))
         InfoRow(EventType.venueLabel(p.eventType), p.theater ?: "—", "SEAT", p.seat ?: "—")
         DirectionsButton(p.theater)
+        SourceButton(p.sourceUrl)
         Spacer(Modifier.height(12.dp))
         InfoRow("DATE", PassTimes.humanDate(p.date) ?: "—", "PRICE", p.price ?: "—")
         if (isMovie) p.overview?.let {
@@ -627,6 +630,30 @@ private fun DirectionsButton(venue: String?) {
     TextButton(onClick = { failed = !Directions.open(context, venue) }) {
         Text(
             if (failed) "NOTHING HERE SHOWS MAPS" else "DIRECTIONS TO THE VENUE",
+            color = if (failed) Color(0xFF8A8A8A) else Color(0xFF7FB0FF),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+/**
+ * "OPEN THE PAGE": back to the page this ticket was made from, in Web Tools. A pass made
+ * from a screenshot is the reminder; a barcode that rotates (Ticketmaster's does, every
+ * fifteen seconds) only scans on the live page, and Web Tools keeps that page ready for
+ * an hour after it made the ticket.
+ */
+@Composable
+private fun SourceButton(sourceUrl: String?) {
+    val context = LocalContext.current
+    val url = sourceUrl?.takeIf { it.isNotBlank() } ?: return
+    var failed by remember { mutableStateOf(false) }
+    TextButton(onClick = {
+        failed = runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.isFailure
+    }) {
+        Text(
+            if (failed) "NOTHING HERE OPENS IT" else "OPEN THE PAGE",
             color = if (failed) Color(0xFF8A8A8A) else Color(0xFF7FB0FF),
             style = MaterialTheme.typography.labelSmall,
         )
