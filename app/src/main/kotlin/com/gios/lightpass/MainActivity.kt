@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * A picture sent by another tool (`ACTION_SEND image/*`), with where it came from. Web
+     * A picture sent by another tool (ACTION_SEND, any image type), with where it came from. Web
      * Tools does this from its pull-down; the picture is a screenshot of the page and the
      * text is the page's `webtools://` address. Same flow shape as [pendingPass], for the
      * same reason: the activity may already be up when the second one arrives.
