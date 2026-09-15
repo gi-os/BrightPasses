@@ -2,6 +2,8 @@
 
 # BrightPasses
 
+[**⬇ Download the latest APK**](https://github.com/gi-os/BrightPasses/releases/latest) · free, open source.
+
 Movie ticket stubs on the Light Phone III. Photograph a stub, and BrightPasses reads the
 title, theater, date, time, seat and price off the paper with Claude Haiku, then keeps
 the ticket in a local collection sorted by showtime, moving it to an archive after the
