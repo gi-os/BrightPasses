@@ -122,12 +122,16 @@ should actually reach users as an update.
 
 ### Release signing
 
-Before merging the signing change, disable **Build & Release APK** so the merge does
-not publish. In a private directory outside the checkout, use Android Build Tools
-35.0.0 to generate the replacement key and create a proof of rotation from the original
-release key. Use fresh passwords when prompted.
+Before merging this change, disable [Build & Release APK](https://github.com/gi-os/BrightPasses/actions/workflows/build.yml).
+A push to `main` otherwise publishes. Keep it disabled until the rotation and distribution
+checks below are done and you intend to publish.
+
+In a private directory outside the checkout, use Android Build Tools 35.0.0. Use the
+original `keystore/lightpass.jks` from a checkout before this change and its existing
+passwords only for the offline rotation step. Use fresh passwords for the new key.
 
 ```sh
+umask 077
 keytool -genkeypair -storetype JKS -keystore brightpasses-new.jks -alias brightpasses-release \
   -keyalg RSA -keysize 3072 -validity 10000
 
@@ -139,12 +143,16 @@ apksigner rotate --out brightpasses.lineage \
 apksigner lineage --in brightpasses.lineage --print-certs
 ```
 
-Verify that signer #1's SHA-256 digest matches `signing-lineage-root-fingerprint.txt`,
-then replace `signing-fingerprint.txt` with signer #2's SHA-256 digest. Do not change
-the original fingerprint. Keep the original private key out of CI; it is only needed
-offline to create the lineage.
+Verify signer #1's SHA-256 digest against `signing-lineage-root-fingerprint.txt` and
+replace `signing-fingerprint.txt` in this PR with signer #2's SHA-256 digest. Do not
+change the original pin. The release won't publish while the pins are still identical.
 
-In **Settings → Secrets and variables → Actions**, set these five secrets:
+In [BrightPasses's environment settings](https://github.com/gi-os/BrightPasses/settings/environments),
+create an environment named `release`. Under **Deployment branches and tags**, choose
+**Selected branches and tags** and add a single **Branch** rule for `main`, with no tag
+rules. Add the five secrets below to that environment only. Do not use repository-wide
+secrets or upload the original key or its passwords. Remove any repository-wide copies
+of these five signing secrets.
 
 | Secret | Value |
 | --- | --- |
@@ -154,24 +162,30 @@ In **Settings → Secrets and variables → Actions**, set these five secrets:
 | `KEY_ALIAS` | `brightpasses-release` |
 | `KEY_PASSWORD` | New key password |
 
-On Linux, upload the files without printing their contents and enter the other values when prompted:
+On Linux, stream the files and enter the passwords at the prompts:
 
 ```sh
-base64 -w 0 brightpasses-new.jks | gh secret set RELEASE_KEYSTORE_BASE64 --repo gi-os/BrightPasses
-base64 -w 0 brightpasses.lineage | gh secret set SIGNING_LINEAGE_BASE64 --repo gi-os/BrightPasses
-gh secret set KEYSTORE_PASSWORD --repo gi-os/BrightPasses
-gh secret set KEY_ALIAS --repo gi-os/BrightPasses
-gh secret set KEY_PASSWORD --repo gi-os/BrightPasses
+base64 -w 0 brightpasses-new.jks | gh secret set RELEASE_KEYSTORE_BASE64 --env release --repo gi-os/BrightPasses
+base64 -w 0 brightpasses.lineage | gh secret set SIGNING_LINEAGE_BASE64 --env release --repo gi-os/BrightPasses
+gh secret set KEYSTORE_PASSWORD --env release --repo gi-os/BrightPasses
+gh secret set KEY_ALIAS --env release --repo gi-os/BrightPasses --body brightpasses-release
+gh secret set KEY_PASSWORD --env release --repo gi-os/BrightPasses
 ```
 
-CI signs with the new key using APK Signature Scheme v3 and verifies the proof of rotation
-from the original pin to the new pin. BrightPasses requires Android API 29, so no supported
-device needs a v1/v2 signature or the old private key. Android can accept an in-place update,
-but a catalog that compares only the current certificate can still hide it from users on
-the old signer. Coordinate the BrightMarket catalog/updater transition before re-enabling
-publishing, and only re-enable it for an authorized release.
+CI supplies only the new private key to `scripts/sign-release.sh` and checks that the APK's
+v3 lineage links both pins, preserves installed data, and disallows signer rollback. API 29+
+does not need v1/v2 signatures. Removing the old key from the branch does not remove it
+from Git history or protect installs that still trust it.
 
-A push to `main` (other than ignored paths) or a manual run of `build.yml` builds,
+Before re-enabling publishing, verify an in-place update from the last shipped build to a
+locally signed test APK with a greater `versionCode` on a device with no real ticket data.
+Coordinate the BrightMarket migration: add the exact old-to-new `com.gios.lightpass`
+handover to [the index](https://github.com/gi-os/brightmarket-index/blob/HEAD/scripts/build_index.py)
+and ensure [the updater](https://github.com/gi-os/BrightMarket) accepts the installed
+predecessor for this transition. The index otherwise keeps the old release, and changing
+the catalog pin alone makes the current updater classify old installs as foreign.
+
+A push to `main` (other than ignored paths) or a manual run of `build.yml` on `main` builds,
 signs, tags, and publishes. Tag pushes do not trigger it. Branch and PR checks
 in `check.yml` publish nothing.
 
