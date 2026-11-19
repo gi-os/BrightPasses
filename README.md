@@ -40,9 +40,9 @@ cd BrightPasses
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-JDK 17 and the Android SDK (`compileSdk` 35, `minSdk` 29). The repo commits a debug
-keystore so every build carries the same signing certificate and Obtainium (or a plain
-`adb install -r`) can update in place instead of failing with `Failure: Invalid`.
+JDK 17 and the Android SDK (`compileSdk` 35, `minSdk` 29). Local debug builds use the
+standard Android debug key and cannot update an installed production APK. Local release
+builds are unsigned; production signing happens in CI.
 
 That build is a working app with no further setup: capture a stub with the camera or
 import one from the album, and the ticket fields stay editable even with no API key —
@@ -110,13 +110,70 @@ The unit tests are plain JUnit over `util/TicketDate.kt` and `util/BookingCode.k
 import nothing from `android.*` for exactly that reason — no Robolectric, no device, and
 the date rule gets checked on every push.
 
-CI (`.github/workflows/build.yml`) tests and builds every branch, and publishes only from
+CI (`.github/workflows/check.yml`) tests and builds branches without publishing.
+The release workflow (`.github/workflows/build.yml`) ships the release variant, not the
+debug variant previously signed with the committed `lightpass.jks`. It publishes only from
 `main`, where it also creates or updates a GitHub Release tagged `v${versionName}` —
 **the tag does not change between pushes that don't bump `versionName`**, so an unrelated
 commit (docs, a provider addition) silently replaces the APK inside the existing release
 rather than creating a new one. Obtainium sees nothing new in that case even though CI went
 green. Bump `versionName` and `versionCode` in `app/build.gradle.kts` whenever the change
 should actually reach users as an update.
+
+### Release signing
+
+Before merging the signing change, disable **Build & Release APK** so the merge does
+not publish. In a private directory outside the checkout, use Android Build Tools
+35.0.0 to generate the replacement key and create a proof of rotation from the original
+release key. Use fresh passwords when prompted.
+
+```sh
+keytool -genkeypair -storetype JKS -keystore brightpasses-new.jks -alias brightpasses-release \
+  -keyalg RSA -keysize 3072 -validity 10000
+
+apksigner rotate --out brightpasses.lineage \
+  --old-signer --ks /path/to/original/lightpass.jks --ks-key-alias lightpass \
+  --set-installed-data true --set-rollback false \
+  --new-signer --ks brightpasses-new.jks --ks-key-alias brightpasses-release
+
+apksigner lineage --in brightpasses.lineage --print-certs
+```
+
+Verify that signer #1's SHA-256 digest matches `signing-lineage-root-fingerprint.txt`,
+then replace `signing-fingerprint.txt` with signer #2's SHA-256 digest. Do not change
+the original fingerprint. Keep the original private key out of CI; it is only needed
+offline to create the lineage.
+
+In **Settings → Secrets and variables → Actions**, set these five secrets:
+
+| Secret | Value |
+| --- | --- |
+| `RELEASE_KEYSTORE_BASE64` | Base64-encoded `brightpasses-new.jks` |
+| `SIGNING_LINEAGE_BASE64` | Base64-encoded `brightpasses.lineage` |
+| `KEYSTORE_PASSWORD` | New keystore password |
+| `KEY_ALIAS` | `brightpasses-release` |
+| `KEY_PASSWORD` | New key password |
+
+On Linux, upload the files without printing their contents and enter the other values when prompted:
+
+```sh
+base64 -w 0 brightpasses-new.jks | gh secret set RELEASE_KEYSTORE_BASE64 --repo gi-os/BrightPasses
+base64 -w 0 brightpasses.lineage | gh secret set SIGNING_LINEAGE_BASE64 --repo gi-os/BrightPasses
+gh secret set KEYSTORE_PASSWORD --repo gi-os/BrightPasses
+gh secret set KEY_ALIAS --repo gi-os/BrightPasses
+gh secret set KEY_PASSWORD --repo gi-os/BrightPasses
+```
+
+CI signs with the new key using APK Signature Scheme v3 and verifies the proof of rotation
+from the original pin to the new pin. BrightPasses requires Android API 29, so no supported
+device needs a v1/v2 signature or the old private key. Android can accept an in-place update,
+but a catalog that compares only the current certificate can still hide it from users on
+the old signer. Coordinate the BrightMarket catalog/updater transition before re-enabling
+publishing, and only re-enable it for an authorized release.
+
+A push to `main` (other than ignored paths) or a manual run of `build.yml` builds,
+signs, tags, and publishes. Tag pushes do not trigger it. Branch and PR checks
+in `check.yml` publish nothing.
 
 ## Contributing
 
