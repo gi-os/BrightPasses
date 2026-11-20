@@ -40,9 +40,9 @@ cd BrightPasses
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-JDK 17 and the Android SDK (`compileSdk` 35, `minSdk` 29). The repo commits a debug
-keystore so every build carries the same signing certificate and Obtainium (or a plain
-`adb install -r`) can update in place instead of failing with `Failure: Invalid`.
+JDK 17 and the Android SDK (`compileSdk` 35, `minSdk` 29). Local debug builds use the
+standard Android debug key and cannot update an installed production APK. Local release
+builds are unsigned; production signing happens in CI.
 
 That build is a working app with no further setup: capture a stub with the camera or
 import one from the album, and the ticket fields stay editable even with no API key —
@@ -110,13 +110,84 @@ The unit tests are plain JUnit over `util/TicketDate.kt` and `util/BookingCode.k
 import nothing from `android.*` for exactly that reason — no Robolectric, no device, and
 the date rule gets checked on every push.
 
-CI (`.github/workflows/build.yml`) tests and builds every branch, and publishes only from
+CI (`.github/workflows/check.yml`) tests and builds branches without publishing.
+The release workflow (`.github/workflows/build.yml`) ships the release variant, not the
+debug variant previously signed with the committed `lightpass.jks`. It publishes only from
 `main`, where it also creates or updates a GitHub Release tagged `v${versionName}` —
 **the tag does not change between pushes that don't bump `versionName`**, so an unrelated
 commit (docs, a provider addition) silently replaces the APK inside the existing release
 rather than creating a new one. Obtainium sees nothing new in that case even though CI went
 green. Bump `versionName` and `versionCode` in `app/build.gradle.kts` whenever the change
 should actually reach users as an update.
+
+### Release signing
+
+Before merging this change, disable [Build & Release APK](https://github.com/gi-os/BrightPasses/actions/workflows/build.yml).
+A push to `main` otherwise publishes. Keep it disabled until the rotation and distribution
+checks below are done and you intend to publish.
+
+In a private directory outside the checkout, use Android Build Tools 35.0.0. Use the
+original `keystore/lightpass.jks` from a checkout before this change and its existing
+passwords only for the offline rotation step. Use fresh passwords for the new key.
+
+```sh
+umask 077
+keytool -genkeypair -storetype JKS -keystore brightpasses-new.jks -alias brightpasses-release \
+  -keyalg RSA -keysize 3072 -validity 10000
+
+apksigner rotate --out brightpasses.lineage \
+  --old-signer --ks /path/to/original/lightpass.jks --ks-key-alias lightpass \
+  --set-installed-data true --set-rollback false \
+  --new-signer --ks brightpasses-new.jks --ks-key-alias brightpasses-release
+
+apksigner lineage --in brightpasses.lineage --print-certs
+```
+
+Verify signer #1's SHA-256 digest against `signing-lineage-root-fingerprint.txt` and
+replace `signing-fingerprint.txt` in this PR with signer #2's SHA-256 digest. Do not
+change the original pin. The release won't publish while the pins are still identical.
+
+In [BrightPasses's environment settings](https://github.com/gi-os/BrightPasses/settings/environments),
+create an environment named `release`. Under **Deployment branches and tags**, choose
+**Selected branches and tags** and add a single **Branch** rule for `main`, with no tag
+rules. Add the five secrets below to that environment only. Do not use repository-wide
+secrets or upload the original key or its passwords. Remove any repository-wide copies
+of these five signing secrets.
+
+| Secret | Value |
+| --- | --- |
+| `RELEASE_KEYSTORE_BASE64` | Base64-encoded `brightpasses-new.jks` |
+| `SIGNING_LINEAGE_BASE64` | Base64-encoded `brightpasses.lineage` |
+| `KEYSTORE_PASSWORD` | New keystore password |
+| `KEY_ALIAS` | `brightpasses-release` |
+| `KEY_PASSWORD` | New key password |
+
+On Linux, stream the files and enter the passwords at the prompts:
+
+```sh
+base64 -w 0 brightpasses-new.jks | gh secret set RELEASE_KEYSTORE_BASE64 --env release --repo gi-os/BrightPasses
+base64 -w 0 brightpasses.lineage | gh secret set SIGNING_LINEAGE_BASE64 --env release --repo gi-os/BrightPasses
+gh secret set KEYSTORE_PASSWORD --env release --repo gi-os/BrightPasses
+gh secret set KEY_ALIAS --env release --repo gi-os/BrightPasses --body brightpasses-release
+gh secret set KEY_PASSWORD --env release --repo gi-os/BrightPasses
+```
+
+CI supplies only the new private key to `scripts/sign-release.sh` and checks that the APK's
+v3 lineage links both pins, preserves installed data, and disallows signer rollback. API 29+
+does not need v1/v2 signatures. Removing the old key from the branch does not remove it
+from Git history or protect installs that still trust it.
+
+Before re-enabling publishing, verify an in-place update from the last shipped build to a
+locally signed test APK with a greater `versionCode` on a device with no real ticket data.
+Coordinate the BrightMarket migration: add the exact old-to-new `com.gios.lightpass`
+handover to [the index](https://github.com/gi-os/brightmarket-index/blob/HEAD/scripts/build_index.py)
+and ensure [the updater](https://github.com/gi-os/BrightMarket) accepts the installed
+predecessor for this transition. The index otherwise keeps the old release, and changing
+the catalog pin alone makes the current updater classify old installs as foreign.
+
+A push to `main` (other than ignored paths) or a manual run of `build.yml` on `main` builds,
+signs, tags, and publishes. Tag pushes do not trigger it. Branch and PR checks
+in `check.yml` publish nothing.
 
 ## Contributing
 
