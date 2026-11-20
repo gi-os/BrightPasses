@@ -23,15 +23,6 @@ android {
         buildConfigField("String", "REPORT_REPO", "\"gi-os/light-reports\"")
     }
 
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file("../keystore/lightpass.jks")
-            storePassword = "lightpass"
-            keyAlias = "lightpass"
-            keyPassword = "lightpass"
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
